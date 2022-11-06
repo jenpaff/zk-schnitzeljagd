@@ -2,6 +2,11 @@
   padding: 0 2rem;
 }
 
+.title {
+  font-size: 22px;
+  color: beige;
+}
+
 .main {
   min-height: 100vh;
   padding: 4rem 0;
@@ -53,10 +58,21 @@
 .description {
   margin: 4rem 0;
   line-height: 1.5;
-  font-size: 1.5rem;
+  font-size: 2rem;
 }
 
-.code {
+.description button {
+  font-size: 2rem;
+}
+
+@media only screen and (max-width: 600px) {
+  .title {
+    font-size: 2rem;
+  }
+}
+
+
+/* .code {
   background: #fafafa;
   border-radius: 5px;
   padding: 0.75rem;
@@ -126,4 +142,4 @@
   .logo img {
     filter: invert(1);
   }
-}
+} */

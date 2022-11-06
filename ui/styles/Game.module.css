@@ -1,0 +1,48 @@
+.riddleBox {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 50vh;
+}
+
+.riddle {
+  /* font */
+  font-size: 90px;
+  color: beige;
+  font-weight: 500;
+  line-height: 1em;
+  text-align: center;
+}
+
+.locationBox {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 20vh;
+}
+
+.location {
+  /* font */
+  font-size: 30px;
+  color: beige;
+  font-weight: 500;
+  line-height: 1em;
+  text-align: center;
+}
+
+.submitButton {
+  font-size: 2rem;
+}
+
+
+.submitButton:hover {
+  background-color: '#ffafbd';
+}
+
+.submissionError {
+  font-size:80px;
+  color: pink;
+  font-weight: 500;
+  line-height: 1em;
+  text-align: center;
+}

@@ -1,6 +1,6 @@
 {
-  "name": "test",
-  "version": "0.1.0",
+  "name": "zk-schnitzelhunt",
+  "version": "0.1.1",
   "description": "",
   "author": "",
   "license": "Apache-2.0",
@@ -29,9 +29,11 @@
     ]
   },
   "devDependencies": {
+    "@babel/plugin-syntax-top-level-await": "^7.14.5",
     "@babel/preset-env": "^7.16.4",
     "@babel/preset-typescript": "^7.16.0",
     "@types/jest": "^27.0.3",
+    "@types/ngeohash": "^0.6.4",
     "@typescript-eslint/eslint-plugin": "^5.5.0",
     "@typescript-eslint/parser": "^5.5.0",
     "eslint": "^8.7.0",
@@ -39,7 +41,9 @@
     "husky": "^7.0.1",
     "jest": "^27.3.1",
     "lint-staged": "^11.0.1",
+    "ngeohash": "^0.6.3",
     "prettier": "^2.3.2",
+    "snarkyjs": "^0.6.0",
     "ts-jest": "^27.0.7",
     "typescript": "^4.7.2"
   },

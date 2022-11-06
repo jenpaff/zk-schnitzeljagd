@@ -2,8 +2,16 @@ html,
 body {
   padding: 0;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
-    Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
+  font-family: 'Roboto', monospace;
+  color-scheme: dark;
+  font-weight: 500;
+  background: #1D2B64;
+  background: -webkit-linear-gradient(to right, #F8CDDA, #1D2B64);
+  background: linear-gradient(to right, #F8CDDA, #1D2B64);
+}
+
+main {
+  min-height: 80vh;
 }
 
 a {
@@ -13,14 +21,4 @@ a {
 
 * {
   box-sizing: border-box;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
-  body {
-    color: white;
-    background: black;
-  }
 }

@@ -8,6 +8,12 @@ This template uses TypeScript.
 npm run build
 ```
 
+# How to run test script
+
+```sh
+npx tsc && node build/src/run.js
+```
+
 ## How to run tests
 
 ```sh
