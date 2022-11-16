@@ -14,6 +14,8 @@ import {
   Mina,
   PublicKey,
   AccountUpdate,
+  Experimental,
+  Poseidon,
 } from 'snarkyjs';
 import geohash from 'ngeohash';
 import { tic, toc } from './tictoc.js';
@@ -30,8 +32,12 @@ import { tic, toc } from './tictoc.js';
 
 await isReady;
 
-export { deployApp };
+export { deployApp, MerkleWitness, Tree };
 export type { CheckinInterface };
+
+const height = 11;
+const Tree = new Experimental.MerkleTree(height);
+class MerkleWitness extends Experimental.MerkleWitness(height) {}
 
 export class LocationCheck extends CircuitValue {
   @prop sharedGeoHash: Field;
@@ -43,11 +49,15 @@ export class LocationCheck extends CircuitValue {
     this.sharedGeoHash = Field.fromNumber(geoHash);
     console.log('convert to geoHash: ' + this.sharedGeoHash);
   }
+
+  hash(): Field {
+    return Poseidon.hash(this.sharedGeoHash.toFields());
+  }
 }
 
 export class CheckInApp extends SmartContract {
-  @state(Field) geoHash = State<Field>();
-  @state(Bool) checkedIn = State<Bool>();
+  @state(Bool) solved = State<Bool>();
+  @state(Field) treeRoot = State<Field>();
 
   deploy(args: DeployArgs) {
     super.deploy(args);
@@ -57,30 +67,27 @@ export class CheckInApp extends SmartContract {
     });
   }
 
-  @method init() {
-    this.geoHash.set(Field.fromNumber(3669811486280996)); // geohash int city center 3669811486280996
-    this.checkedIn.set(new Bool(false));
+  @method init(root: Field) {
+    this.solved.set(new Bool(false));
+    this.treeRoot.set(root);
   }
 
-  @method checkIn(locationCheckInstance: LocationCheck) {
-    const currGeoHashes = this.geoHash.get();
-    this.geoHash.assertEquals(currGeoHashes); // precondition that links this.num.get() to the actual on-chain state
-    const currIn = this.checkedIn.get();
-    this.checkedIn.assertEquals(new Bool(false)); // can only check in when I was checked out
+  @method checkIn(locationCheckInstance: LocationCheck, path: MerkleWitness) {
+    // check preconditions
+    const isSolved = this.solved.get();
+    this.solved.assertEquals(new Bool(false)); // can only check in when I was checked out
+    const root = this.treeRoot.get();
+    this.treeRoot.assertEquals(root);
+    // console.log('shared geohash HASH: '+Poseidon.hash(locationCheckInstance.sharedGeoHash.toFields()));
+    path
+      .calculateRoot(
+        Poseidon.hash(locationCheckInstance.sharedGeoHash.toFields())
+      )
+      .assertEquals(root);
 
-    // check if incoming geoHash is equal or nearby
-    // TODO: causes error 'Can't evaluate prover code outside an as_prover block'
-    // let valid = is_in_valid_range(
-    //   currGeoHashes,
-    //   locationCheckInstance.sharedGeoHash
-    // );
-    // valid.assertTrue();
-
-    locationCheckInstance.sharedGeoHash.assertEquals(currGeoHashes);
-
-    const checkIn = currIn.not();
-    checkIn.assertEquals(currIn.not());
-    this.checkedIn.set(checkIn);
+    const solved = isSolved.not();
+    solved.assertEquals(isSolved.not());
+    this.solved.set(solved);
   }
 }
 
@@ -90,22 +97,29 @@ const feePayer = Local.testAccounts[0].privateKey;
 
 type CheckinInterface = {
   // eslint-disable-next-line
-  checkIn(sharedLocation: LocationCheck): Promise<void>;
-  getState(): { targetGeoHash: string; checkedIn: boolean };
+  checkIn(
+    // eslint-disable-next-line
+    sharedLocation: LocationCheck,
+    // eslint-disable-next-line
+    solution1Map: Map<string, number>
+  ): Promise<void>;
+  getState(): { solved: boolean };
 };
 
-async function deployApp() {
+async function deployApp(root: Field) {
   console.log('Deploying Checkin App ....');
+  console.log('Merkle root deployApp ' + Tree.getRoot());
 
   let zkappKey = PrivateKey.random();
   let zkappAddress = zkappKey.toPublicKey();
+
   tic('compile');
   let { verificationKey } = await CheckInApp.compile();
   toc();
 
   let zkappInterface = {
-    checkIn(sharedLocation: LocationCheck) {
-      return checkIn(zkappAddress, sharedLocation);
+    checkIn(sharedLocation: LocationCheck, solution1Map: Map<string, number>) {
+      return checkIn(zkappAddress, sharedLocation, solution1Map);
     },
     getState() {
       return getState(zkappAddress);
@@ -113,26 +127,43 @@ async function deployApp() {
   };
 
   let zkapp = new CheckInApp(zkappAddress);
-  let tx = await Mina.transaction(feePayer, () => {
-    console.log('Funding account...');
-    AccountUpdate.fundNewAccount(feePayer);
-    console.log('Initialising smart contract...');
-    zkapp.init();
-    console.log('Deploying zkapp...');
-    zkapp.deploy({ zkappKey, verificationKey });
-  });
-  await tx.send().wait();
 
-  console.log('Deployment successful!');
+  try {
+    let tx = await Mina.transaction(feePayer, () => {
+      console.log('Funding account...');
+      AccountUpdate.fundNewAccount(feePayer);
+      console.log('Initialising smart contract...');
+      zkapp.init(root);
+      zkapp.deploy({ zkappKey, verificationKey });
+    });
+    await tx.send().wait();
+
+    console.log('Deployment successful!');
+  } catch (error) {
+    console.error('Error deploying app ' + error);
+  }
+
   return zkappInterface;
 }
 
-async function checkIn(zkappAddress: PublicKey, sharedLocation: LocationCheck) {
+async function checkIn(
+  zkappAddress: PublicKey,
+  sharedLocation: LocationCheck,
+  solution1Map: Map<string, number>
+) {
   console.log('Initiating checkin process...');
   let zkapp = new CheckInApp(zkappAddress);
   try {
     let txn = await Mina.transaction(feePayer, () => {
-      zkapp.checkIn(sharedLocation);
+      let idx = solution1Map.get(sharedLocation.sharedGeoHash.toString());
+      if (idx == undefined) {
+        throw console.log('Location shared is incorrect!');
+      }
+      console.log(
+        'index: ' + idx + ' geohash: ' + sharedLocation.sharedGeoHash.toString()
+      );
+      let witness = new MerkleWitness(Tree.getWitness(BigInt(+idx)));
+      zkapp.checkIn(sharedLocation, witness);
     });
     tic('prove');
     await txn.prove().then((tx) => {
@@ -148,7 +179,7 @@ async function checkIn(zkappAddress: PublicKey, sharedLocation: LocationCheck) {
 
 function getState(zkappAddress: PublicKey) {
   let zkapp = new CheckInApp(zkappAddress);
-  let targetGeoHash = zkapp.geoHash.get().toString();
-  let checkedIn = zkapp.checkedIn.get().toBoolean();
-  return { targetGeoHash, checkedIn };
+  let solved = zkapp.solved.get().toBoolean();
+  // let treeRoot = zkapp.treeRoot.get();
+  return { solved };
 }

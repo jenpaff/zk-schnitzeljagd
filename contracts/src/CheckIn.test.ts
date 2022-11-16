@@ -8,6 +8,7 @@ import {
   PublicKey,
   AccountUpdate,
   Bool,
+  Experimental,
 } from 'snarkyjs';
 
 /*
@@ -16,6 +17,34 @@ import {
  *
  * See https://docs.minaprotocol.com/zkapps for more info.
  */
+
+const height = 3;
+const TestTree = new Experimental.MerkleTree(height);
+class TestMerkleWitness extends Experimental.MerkleWitness(height) {}
+
+let solution1Map = new Map<string, number>();
+solution1Map.set('3669811487353460', 0);
+solution1Map.set('3669811487352959', 1);
+solution1Map.set('3669811487353435', 2);
+
+TestTree.setLeaf(
+  BigInt(0),
+  Field(
+    '16077998167343028646553135557584000622885794069175355468859880643191246902648'
+  )
+);
+TestTree.setLeaf(
+  BigInt(1),
+  Field(
+    '4959863211293764835981522120121170127998735725904090891639971960790493692203'
+  )
+);
+TestTree.setLeaf(
+  BigInt(2),
+  Field(
+    '9701086696850912768974935365193163925219115828058727347233540734990262902986'
+  )
+);
 
 function createLocalBlockchain() {
   const Local = Mina.LocalBlockchain();
@@ -30,7 +59,7 @@ async function localDeploy(
 ) {
   const txn = await Mina.transaction(deployerAccount, () => {
     AccountUpdate.fundNewAccount(deployerAccount);
-    zkAppInstance.init();
+    zkAppInstance.init(TestTree.getRoot());
     zkAppInstance.deploy({ zkappKey: zkAppPrivatekey });
     zkAppInstance.sign(zkAppPrivatekey);
   });
@@ -59,57 +88,75 @@ describe('CheckIn', () => {
   it('generates and deploys the `CheckIn` smart contract', async () => {
     const zkAppInstance = new CheckInApp(zkAppAddress);
     await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
-    const geoHash = zkAppInstance.geoHash.get();
-    expect(geoHash).toEqual(Field.fromNumber(3669811486280996));
-    const checkedIn = zkAppInstance.checkedIn.get();
-    expect(checkedIn).toEqual(Bool(false));
+    const root = zkAppInstance.treeRoot.get();
+    expect(root).toEqual(TestTree.getRoot());
+    const isSolved = zkAppInstance.solved.get();
+    expect(isSolved).toEqual(Bool(false));
   });
 
   describe('checkIn', () => {
     it('correctly updates the states on the `CheckInApp` smart contract if location is exactly the same', async () => {
       const zkAppInstance = new CheckInApp(zkAppAddress);
       await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
-      const locationInstance = new LocationCheck(48.208487, 16.372571);
+      const locationInstance = new LocationCheck(48.2107958217, 16.3736155926);
       const txn = await Mina.transaction(deployerAccount, () => {
-        zkAppInstance.checkIn(locationInstance);
+        let idx = solution1Map.get(locationInstance.sharedGeoHash.toString());
+        if (idx == undefined) {
+          return;
+        }
+        let witness = new TestMerkleWitness(TestTree.getWitness(BigInt(idx)));
+
+        zkAppInstance.checkIn(locationInstance, witness);
         zkAppInstance.sign(zkAppPrivateKey);
       });
       await txn.send().wait();
 
-      const updatedCheck = zkAppInstance.checkedIn.get();
-      expect(updatedCheck).toEqual(Bool(true));
+      const isSolved = zkAppInstance.solved.get();
+      expect(isSolved).toEqual(Bool(true));
     });
 
     /*
-     * TODO: make sure we can assert to a range of geoHashes, otherwise the game would be pretty cumbersome
+     * test with a range of geoHashes
      */
 
-    it.skip('correctly updates the states on the `CheckInApp` smart contract if location is within valid longitude range', async () => {
+    it('correctly updates the states on the `CheckInApp` smart contract if location is within valid longitude range', async () => {
       const zkAppInstance = new CheckInApp(zkAppAddress);
-      const locationInstance = new LocationCheck(48.208487, 16.372573); // move a bit east
+      const locationInstance = new LocationCheck(48.2107932866, 16.3736870885); // move a bit east
       await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
       const txn = await Mina.transaction(deployerAccount, () => {
-        zkAppInstance.checkIn(locationInstance);
+        let idx = solution1Map.get(locationInstance.sharedGeoHash.toString());
+        if (idx == undefined) {
+          return;
+        }
+        let witness = new TestMerkleWitness(TestTree.getWitness(BigInt(idx)));
+
+        zkAppInstance.checkIn(locationInstance, witness);
         zkAppInstance.sign(zkAppPrivateKey);
       });
       await txn.send().wait();
 
-      const updatedCheck = zkAppInstance.checkedIn.get();
-      expect(updatedCheck).toEqual(Bool(true));
+      const isSolved = zkAppInstance.solved.get();
+      expect(isSolved).toEqual(Bool(true));
     });
 
-    it.skip('correctly updates the states on the `CheckInApp` smart contract if location is within valid latitude range', async () => {
+    it('correctly updates the states on the `CheckInApp` smart contract if location is within valid latitude range', async () => {
       const zkAppInstance = new CheckInApp(zkAppAddress);
-      const locationInstance = new LocationCheck(48.208487, 16.37257); // move a bit east
+      const locationInstance = new LocationCheck(48.2107906043, 16.373681724); // move a bit east
       await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
       const txn = await Mina.transaction(deployerAccount, () => {
-        zkAppInstance.checkIn(locationInstance);
+        let idx = solution1Map.get(locationInstance.sharedGeoHash.toString());
+        if (idx == undefined) {
+          return;
+        }
+        let witness = new TestMerkleWitness(TestTree.getWitness(BigInt(idx)));
+
+        zkAppInstance.checkIn(locationInstance, witness);
         zkAppInstance.sign(zkAppPrivateKey);
       });
       await txn.send().wait();
 
-      const updatedCheck = zkAppInstance.checkedIn.get();
-      expect(updatedCheck).toEqual(Bool(true));
+      const isSolved = zkAppInstance.solved.get();
+      expect(isSolved).toEqual(Bool(true));
     });
   });
 });

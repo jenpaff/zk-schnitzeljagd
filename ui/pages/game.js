@@ -9,21 +9,27 @@ import styles from '../styles/Game.module.css'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faLocationDot } from '@fortawesome/free-solid-svg-icons';
 import geohash from 'ngeohash';
-import { CheckIn } from 'zk-schnitzelhunt';
+import { Poseidon, Field, Bool } from 'snarkyjs';
+// import { CheckIn } from 'zk-schnitzelhunt';
 
-// let CheckIn; // this will hold the dynamically imported './sudoku-zkapp.ts'
+let CheckIn; // this will hold the dynamically imported './sudoku-zkapp.ts'
 
 function MyApp() {
 
+  let doDeploy = true;
+  let doQuick = false;
+
   const [lat, setLat] = useState(null);
   const [lng, setLng] = useState(null);
-  const [geoHash, setGeoHash] = useState();
-  const [geoHashInt, setGeoHashInt] = useState();
-  let [zkapp, setZkapp] = useState();
+  const [geoHash, setGeoHash] = useState('');
+  const [geoHashInt, setGeoHashInt] = useState('');
+  const [solution1Map, setSolution1Map] = useState(new Map());
+  let [zkapp, setZkapp] = useState('');
   let [isLoading, setLoading] = useState(false);
   let [isFirstRender, setFirstRender] = useState(true);
   let [showSubmissionSuccess, setSubmissionSuccess] = useState(false);
   let [showSubmissionError, setSubmissionError] = useState(false);
+  let [showRiddle1, setShowRiddle1] = useState(true);
 
   useEffect(() => {
     console.log('useEffect ran');
@@ -33,19 +39,47 @@ function MyApp() {
       if (!isFirstRender || isLoading) return;
       setFirstRender(false);
       setLoading(true);
-      const {CheckIn} = await import('../../contracts/build/src/CheckIn.js');
-      let zkapp = await CheckIn.deployApp();
+      CheckIn = await import('../../contracts/build/src/CheckIn.js');
+
+      if (doQuick) {
+        const test_geohash = geohash.encode_int(48.2107958217, 16.3736155926);
+        console.log('test_geohash ' + test_geohash);
+        let hash = Poseidon.hash(Field.fromNumber(+test_geohash).toFields());
+        console.log('hash ' + hash);
+        solution1Map.set(test_geohash.toString(), 0);
+        CheckIn.Tree.setLeaf(BigInt(0), hash);
+      }
+
+      // setup merkle tree for solution 1
+      if (!doQuick && solution1Map.size == 0) {
+        console.log('Building solution1 merkle tree..');
+        const solution1 = geohash.bboxes_int(48.2107356534, 16.3736139593, 48.2108048225, 16.3737322524);
+        for (let index = 0; index < solution1.length; index++) {
+          let map_index = BigInt(index);
+          let hash = Poseidon.hash(Field.fromNumber(+solution1[index]).toFields());
+          console.log('index: ' + index + ' geohash HASH: ' + hash);
+          solution1Map.set(solution1[index].toString(), index);
+          CheckIn.Tree.setLeaf(map_index, hash);
+        }
+        setSolution1Map(solution1Map);
+      } else {
+        console.log('Solution1 Merkle tree already built: '+solution1Map.size);
+      }
+      
+      let zkapp = await CheckIn.deployApp(CheckIn.Tree.getRoot());
       setZkapp(zkapp);
       setLoading(false);
-      console.log('Initial state checkedIn '+zkapp.getState().checkedIn);
-      console.log('Initial state targetGeoHash '+zkapp.getState().targetGeoHash);
-      console.log(zkapp);
     }
-    deploy();
-    
+    if (doDeploy) {
+      deploy();
+    } else {
+      setFirstRender(false);
+      setLoading(false);
+    }
   }, []);
 
   function shareLocation() {
+    console.log('sharing location..');
     if (showSubmissionError) {
       setSubmissionError(false);
     }
@@ -58,34 +92,19 @@ function MyApp() {
         geohash.encode_int(
           position.coords.latitude,
           position.coords.longitude,
-        )
+        ).toFixed(10)
       );
-
-      // bounding box ankeruhr
-      let bboxes_int = geohash.bboxes_int(48.210766,16.373587,48.2107804, 16.3737335);
-      console.log(bboxes_int);
-      console.log('bla '+bboxes_int);
-
-      let coord1 = geohash.decode_int(3669811487352851);
-      console.log('coord1 lat '+coord1.latitude+ ' long '+coord1.longitude);
-      let coord2 = geohash.decode_int(3669811487352981);
-      console.log('coord2 lat '+coord2.latitude+ ' long '+coord2.longitude);
-      let coord3 = geohash.decode_int(3669811487353538);
-      console.log('coord3 lat '+coord3.latitude+' long '+ coord3.longitude);
-      
     });
   };
 
   const submit = async (zkapp) => {
     console.log('Submitting location: '+lat+','+lng);
     setLoading(true);
-    // uncomment line below to test happy path
-    const {CheckIn} = await import('../../contracts/build/src/CheckIn.js');
-    let location = new CheckIn.LocationCheck(48.208487, 16.372571);
+    CheckIn = await import('../../contracts/build/src/CheckIn.js');
+    let location = new CheckIn.LocationCheck(48.2107958217, 16.3736155926);
     // let location = new CheckIn.LocationCheck(lat, lng);
-    console.log(CheckIn);
-    await zkapp.checkIn(location);
-    let checkin = zkapp?.getState().checkedIn;
+    await zkapp.checkIn(location, solution1Map);
+    let checkin = zkapp?.getState().solved;
     if (checkin) {
       setSubmissionSuccess(true);
     } else {
@@ -116,16 +135,14 @@ function MyApp() {
     </div>
     <div>
         <Container fixed>
-          <Box className={styles.riddleBox}
-          >
-            <p className={styles.riddle}>Some question on sharing location ... </p>
-          </Box>
-          <Box className={styles.locationBox}
-          >
-            <p className={styles.location}>
-              Solve by sharing your location 👉 <FontAwesomeIcon icon={faLocationDot} onClick={shareLocation} style={{color: '#ffafbd'}} size="2x" />
-            </p>
-          </Box>
+          {showRiddle1 &&<Box className={styles.riddleBox}>
+              <p className={styles.riddle}>I've got an anchor, but have no sail. My sound makes Hooks mind derail. Stand underneath, close in the middle, share your location to solve the riddle. </p>
+            </Box>}
+            <Box className={styles.locationBox}>
+              <p className={styles.location}>
+                Solve by sharing your location 👉 <FontAwesomeIcon icon={faLocationDot} onClick={shareLocation} style={{color: '#ffafbd'}} size="2x" />
+              </p>
+            </Box>
           {!showSubmissionError && !showSubmissionSuccess && <Box
             className={styles.location}
           >
@@ -152,13 +169,13 @@ function MyApp() {
             <p className={styles.submissionError}>
               Wrong Location, try again!
             </p>
-      </Box>}
+        </Box>}
 
-      {showSubmissionSuccess && <Box className={styles.locationBox}>
-            <p className={styles.submissionError}>
-              Nice one! 
-            </p>
-      </Box>}
+          {showSubmissionSuccess && <Box className={styles.locationBox}>
+                <p className={styles.submissionError}>
+                  Nice one! 
+                </p>
+          </Box>}
 
         </Container>
       </div>
