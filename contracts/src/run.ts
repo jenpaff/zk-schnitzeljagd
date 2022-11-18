@@ -1,10 +1,11 @@
 import { LocationCheck, deployApp, Tree } from './CheckIn.js';
-import { Field, Poseidon, shutdown } from 'snarkyjs';
+import { Bool, Field, Poseidon, shutdown } from 'snarkyjs';
 import geohash from 'ngeohash';
 import { read_solution_into_map_from_memory } from './utils.js';
 import { tic, toc } from './tictoc.js';
 
-const doQuick = false;
+const doQuick = true;
+const doProof = true;
 
 let solution1Map = new Map<string, number>(); // mapping geohash to index
 
@@ -29,14 +30,14 @@ if (doQuick) {
 console.log('root ' + Tree.getRoot());
 
 // deploy checkIn zkapp
-let zkapp = await deployApp(Tree.getRoot());
+let zkapp = await deployApp(Tree.getRoot(), doProof);
 
 console.log('solution1Map size ' + solution1Map.size);
-const solved = zkapp.getState().solved;
-
-let currentState;
+let solved = zkapp.getState().solved;
+let counter = zkapp.getState().counter;
 
 console.log('Initial State checkInState', solved);
+console.log('Initial State counter', counter);
 
 // attempt to update state with wrong location, should fail
 console.log(
@@ -61,14 +62,35 @@ await zkapp.checkIn(
   solution1Map
 );
 
-currentState = zkapp.getState().solved;
+solved = zkapp.getState().solved;
+counter = zkapp.getState().counter;
 
-if (currentState !== true) {
+console.log('currentState: ' + solved);
+console.log('counter: ' + counter);
+
+if (solved !== true) {
   throw Error(
-    `Current state of ${currentState} does not match true after checking in with correct location`
+    `Current state of ${solved} does not match true after checking in with correct location`
   );
 }
 
-console.log(`Current state succesfully updated to ${currentState}`);
+console.log(`Updating state from ${solved} to false with update...`);
+
+await zkapp.update(Bool(false));
+
+solved = zkapp.getState().solved;
+counter = zkapp.getState().counter;
+
+console.log('solved: ' + solved);
+console.log('counter: ' + counter);
+
+if (counter != '2') {
+  throw Error(`Current state of ${counter} does not match 2 after update`);
+}
+if (solved == true) {
+  throw Error(`Current state of ${solved} does not match false after update`);
+}
+
+console.log(`Current state succesfully updated to ${solved}`);
 
 shutdown();

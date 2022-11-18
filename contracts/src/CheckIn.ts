@@ -58,6 +58,7 @@ export class LocationCheck extends CircuitValue {
 export class CheckInApp extends SmartContract {
   @state(Bool) solved = State<Bool>();
   @state(Field) treeRoot = State<Field>();
+  @state(Field) counter = State<Field>();
 
   deploy(args: DeployArgs) {
     super.deploy(args);
@@ -70,6 +71,7 @@ export class CheckInApp extends SmartContract {
   @method init(root: Field) {
     this.solved.set(new Bool(false));
     this.treeRoot.set(root);
+    this.counter.set(Field(0));
   }
 
   @method checkIn(locationCheckInstance: LocationCheck, path: MerkleWitness) {
@@ -78,7 +80,9 @@ export class CheckInApp extends SmartContract {
     this.solved.assertEquals(new Bool(false)); // can only check in when I was checked out
     const root = this.treeRoot.get();
     this.treeRoot.assertEquals(root);
-    // console.log('shared geohash HASH: '+Poseidon.hash(locationCheckInstance.sharedGeoHash.toFields()));
+    const counter = this.counter.get();
+    this.counter.assertEquals(counter);
+    this.counter.set(counter.add(Field(1)));
     path
       .calculateRoot(
         Poseidon.hash(locationCheckInstance.sharedGeoHash.toFields())
@@ -88,6 +92,15 @@ export class CheckInApp extends SmartContract {
     const solved = isSolved.not();
     solved.assertEquals(isSolved.not());
     this.solved.set(solved);
+  }
+
+  @method update(update_to: Bool) {
+    const counter = this.counter.get();
+    this.counter.assertEquals(counter);
+    this.counter.set(counter.add(Field(1)));
+    const isSolved = this.solved.get();
+    this.solved.assertEquals(isSolved);
+    this.solved.set(update_to);
   }
 }
 
@@ -104,25 +117,39 @@ type CheckinInterface = {
     solution1Map: Map<string, number>
   ): Promise<void>;
   getState(): { solved: boolean };
+  update(): Promise<void>;
 };
 
-async function deployApp(root: Field) {
+async function deployApp(root: Field, doProof: boolean) {
   console.log('Deploying Checkin App ....');
   console.log('Merkle root deployApp ' + Tree.getRoot());
 
-  let zkappKey = PrivateKey.random();
-  let zkappAddress = zkappKey.toPublicKey();
+  let zkappPrivateKey = PrivateKey.random();
+  let zkappAddress = zkappPrivateKey.toPublicKey();
 
-  tic('compile');
-  let { verificationKey } = await CheckInApp.compile();
-  toc();
+  let verificationKey: any;
+
+  if (doProof) {
+    tic('compile');
+    ({ verificationKey } = await CheckInApp.compile());
+    toc();
+  }
 
   let zkappInterface = {
     checkIn(sharedLocation: LocationCheck, solution1Map: Map<string, number>) {
-      return checkIn(zkappAddress, sharedLocation, solution1Map);
+      return checkIn(
+        zkappPrivateKey,
+        zkappAddress,
+        sharedLocation,
+        solution1Map,
+        doProof
+      );
     },
     getState() {
       return getState(zkappAddress);
+    },
+    update(bla: Bool) {
+      return update(zkappPrivateKey, zkappAddress, doProof, bla);
     },
   };
 
@@ -132,9 +159,14 @@ async function deployApp(root: Field) {
     let tx = await Mina.transaction(feePayer, () => {
       console.log('Funding account...');
       AccountUpdate.fundNewAccount(feePayer);
-      console.log('Initialising smart contract...');
-      zkapp.init(root);
-      zkapp.deploy({ zkappKey, verificationKey });
+      console.log('Deploying smart contract...');
+      zkapp.deploy({ zkappKey: zkappPrivateKey, verificationKey });
+      if (!doProof) {
+        zkapp.setPermissions({
+          ...Permissions.default(),
+          editState: Permissions.proofOrSignature(),
+        });
+      }
     });
     await tx.send().wait();
 
@@ -143,13 +175,32 @@ async function deployApp(root: Field) {
     console.error('Error deploying app ' + error);
   }
 
+  try {
+    let tx = await Mina.transaction(feePayer, () => {
+      console.log('Initialising smart contract...');
+      zkapp.init(root);
+      if (!doProof) zkapp.sign(zkappPrivateKey);
+    });
+    if (doProof) {
+      console.log('proving...');
+      await tx.prove();
+    }
+    await tx.send().wait();
+
+    console.log('Contract successfully deployed and initialized!');
+  } catch (error) {
+    console.error('Error initialising app ' + error);
+  }
+
   return zkappInterface;
 }
 
 async function checkIn(
+  zkappPrivateKey: PrivateKey,
   zkappAddress: PublicKey,
   sharedLocation: LocationCheck,
-  solution1Map: Map<string, number>
+  solution1Map: Map<string, number>,
+  doProof: boolean
 ) {
   console.log('Initiating checkin process...');
   let zkapp = new CheckInApp(zkappAddress);
@@ -164,12 +215,46 @@ async function checkIn(
       );
       let witness = new MerkleWitness(Tree.getWitness(BigInt(+idx)));
       zkapp.checkIn(sharedLocation, witness);
+      if (!doProof) {
+        zkapp.sign(zkappPrivateKey);
+      }
     });
-    tic('prove');
-    await txn.prove().then((tx) => {
-      tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
+    if (doProof) {
+      tic('prove');
+      await txn.prove().then((tx) => {
+        tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
+      });
+      toc();
+    }
+    await txn.send().wait();
+  } catch (err) {
+    console.log('Solution rejected!');
+    console.error(err);
+  }
+}
+
+async function update(
+  zkappPrivateKey: PrivateKey,
+  zkappAddress: PublicKey,
+  doProof: boolean,
+  update_to: Bool
+) {
+  console.log('Initiating update process...');
+  let zkapp = new CheckInApp(zkappAddress);
+  try {
+    let txn = await Mina.transaction(feePayer, () => {
+      zkapp.update(update_to);
+      if (!doProof) {
+        zkapp.sign(zkappPrivateKey);
+      }
     });
-    toc();
+    if (doProof) {
+      tic('prove');
+      await txn.prove().then((tx) => {
+        tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
+      });
+      toc();
+    }
     await txn.send().wait();
   } catch (err) {
     console.log('Solution rejected!');
@@ -180,6 +265,6 @@ async function checkIn(
 function getState(zkappAddress: PublicKey) {
   let zkapp = new CheckInApp(zkappAddress);
   let solved = zkapp.solved.get().toBoolean();
-  // let treeRoot = zkapp.treeRoot.get();
-  return { solved };
+  let counter = zkapp.counter.get().toString();
+  return { solved, counter };
 }
