@@ -1,3 +1,3 @@
-import { CheckInApp } from './CheckIn.js';
+import { SchnitzelHuntApp } from './Schnitzel.js';
 
-export { CheckInApp };
+export { SchnitzelHuntApp };

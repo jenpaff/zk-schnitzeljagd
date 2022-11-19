@@ -1,8 +1,8 @@
 import { Field, Bool } from 'snarkyjs';
 import geohash from 'ngeohash';
 import { Poseidon } from 'snarkyjs';
-import { Tree } from './CheckIn.js';
 import fs from 'fs';
+import { Solution1Tree } from './Schnitzel.js';
 
 /**
  * check if geoHash integer is in one of the neighbours
@@ -14,7 +14,7 @@ export function is_in_valid_range(
   var geoHashInt: number = +targetGeoHash.toString();
   const neighbours: Field[] = geohash
     .neighbors_int(geoHashInt)
-    .map((n) => Field.fromNumber(n));
+    .map((n) => Field(n));
 
   console.log('targetGeoHash ' + targetGeoHash);
   console.log('sharedGeoHash ' + sharedGeoHash);
@@ -27,7 +27,6 @@ export function is_in_valid_range(
   return valid;
 }
 
-// 48.2107356534, 16.3736139593, 48.2108048225, 16.3737322524
 export function write_solution_map_to_file(
   filename: string,
   minlat: number,
@@ -47,7 +46,7 @@ export function write_solution_map_to_file(
     const geoHashInt = +solution1[index];
     console.log('index: ' + index + ' geohash: ' + geoHashInt);
 
-    let hash = Poseidon.hash(Field.fromNumber(geoHashInt).toFields());
+    let hash = Poseidon.hash(Field(geoHashInt).toFields());
     console.log('index: ' + index + ' geohash HASH: ' + hash);
 
     fs.appendFileSync(filename, '\n' + index + ':' + hash);
@@ -65,7 +64,7 @@ export function read_solution_into_tree_from_file(filename: string) {
     if (line.length > 0) {
       const values = line.split(':');
       console.log(values);
-      Tree.setLeaf(BigInt(values[0]), Field.fromString(values[1]));
+      Solution1Tree.setLeaf(BigInt(values[0]), Field.fromString(values[1]));
     }
   });
 }
@@ -101,10 +100,10 @@ export function read_solution_into_map_from_memory(
   for (let index = 0; index < solution1.length; index++) {
     console.log('index: ' + index + ' geohash: ' + solution1[index]);
     let map_index = BigInt(index);
-    let hash = Poseidon.hash(Field.fromNumber(+solution1[index]).toFields());
+    let hash = Poseidon.hash(Field(+solution1[index]).toFields());
     console.log('index: ' + index + ' geohash HASH: ' + hash);
     solutionMap.set(solution1[index], index);
-    Tree.setLeaf(map_index, hash);
+    Solution1Tree.setLeaf(map_index, hash);
   }
   return solutionMap;
 }
