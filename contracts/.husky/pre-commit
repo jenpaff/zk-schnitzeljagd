@@ -2,4 +2,7 @@
 . "$(dirname "$0")/_/husky.sh"
 
 cd contracts
+npm run format
 npx lint-staged
+npm run build && node build/src/run.js
+npm run test

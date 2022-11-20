@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Button from '@mui/material/Button';
 import Container from '@mui/material/Container';
-import { Backdrop, Box, CircularProgress } from '@mui/material';
+import { Backdrop, Box, CircularProgress, Typography } from '@mui/material';
 import Head from 'next/head'
 import Image from 'next/image'
 import homeStyles from '../styles/Home.module.css'
@@ -11,23 +11,32 @@ import { faLocationDot } from '@fortawesome/free-solid-svg-icons';
 import { faArrowRight } from '@fortawesome/free-solid-svg-icons';
 import geohash from 'ngeohash';
 import { Poseidon, Field, Bool } from 'snarkyjs';
-// import { CheckIn } from 'zk-schnitzelhunt';
+import useWindowSize from "./useWindowSize";
+import Confetti from 'react-confetti';
 
-let SchitzelHunt; // this will hold the dynamically imported './sudoku-zkapp.ts'
+let SchnitzelHunt; // this will hold the dynamically imported './Schnitzel.js'
 
+/*
+  when turned off it will skip generating a proof for correct solutions, 
+  may be used for quick testing of the logic
+*/
+let doQuick = false;
+/*
+  when turned off it only adds one geohash solution to the solutionTree (used for quick testing/showcasing) 
+  rather than loading the whole solution tree to allow for a wider range of allowed locations per solution
+*/
 let doProof = false;
 
 function MyApp() {
 
   let doDeploy = true;
-  let doQuick = true;
 
   const [lat, setLat] = useState(null);
   const [lng, setLng] = useState(null);
-  const [geoHash, setGeoHash] = useState('');
   const [geoHashInt, setGeoHashInt] = useState('');
   const [solution1Map, setSolution1Map] = useState(new Map());
   const [solution2Map, setSolution2Map] = useState(new Map());
+  const [solution3Map, setSolution3Map] = useState(new Map());
   let [zkapp, setZkapp] = useState('');
   let [isLoading, setLoading] = useState(false);
   let [isFirstRender, setFirstRender] = useState(true);
@@ -35,7 +44,10 @@ function MyApp() {
   let [showSubmissionError, setSubmissionError] = useState(false);
   let [showRiddle1, setShowRiddle1] = useState(true);
   let [showRiddle2, setShowRiddle2] = useState(false);
+  let [showRiddle3, setShowRiddle3] = useState(false);
   let [currStep, setCurrStep] = useState(0);
+  let [finished, setFinished] = useState(false);
+  const windowSize = useWindowSize();
 
   useEffect(() => {
     console.log('useEffect ran');
@@ -45,40 +57,72 @@ function MyApp() {
       if (!isFirstRender || isLoading) return;
       setFirstRender(false);
       setLoading(true);
-      SchitzelHunt = await import('../../contracts/build/src/Schnitzel.js');
+      SchnitzelHunt = await import('../../contracts/build/src/Schnitzel.js');
 
       if (doQuick) {
-        const test_geohash = geohash.encode_int(48.2107958217, 16.3736155926);
-        console.log('test_geohash ' + test_geohash);
-        let hash = Poseidon.hash(Field(+test_geohash).toFields());
+        // solution 1 
+        const test_geohash1 = geohash.encode_int(48.2107958217, 16.3736155926);
+        console.log('test_geohash1 ' + test_geohash1);
+        let hash = Poseidon.hash(Field(+test_geohash1).toFields());
         console.log('hash ' + hash);
-        solution1Map.set(test_geohash.toString(), 0);
-        solution2Map.set(test_geohash.toString(), 0);
-        SchitzelHunt.Solution1Tree.setLeaf(BigInt(0), hash);
-        SchitzelHunt.Solution2Tree.setLeaf(BigInt(0), hash);
-      }
+        solution1Map.set(test_geohash1.toString(), 0);
+        SchnitzelHunt.Solution1Tree.setLeaf(BigInt(0), hash);
 
-      // setup merkle tree for solution 1
-      if (!doQuick && solution1Map.size == 0) {
-        console.log('Building solution1 merkle tree..');
-        const solution1 = geohash.bboxes_int(48.2107356534, 16.3736139593, 48.2108048225, 16.3737322524);
-        for (let index = 0; index < solution1.length; index++) {
-          let map_index = BigInt(index);
-          let hash = Poseidon.hash(Field(+solution1[index]).toFields());
-          console.log('index: ' + index + ' geohash HASH: ' + hash);
-          solution1Map.set(solution1[index].toString(), index);
-          solution2Map.set(solution1[index].toString(), index);
-          SchitzelHunt.Solution1Tree.setLeaf(map_index, hash);
-          SchitzelHunt.Solution2Tree.setLeaf(map_index, hash);
-        }
+        // solution 2 
+        const test_geohash2 = geohash.encode_int(48.2079410492, 16.3716678382);
+        console.log('test_geohash2 ' + test_geohash2);
+        hash = Poseidon.hash(Field(+test_geohash2).toFields());
+        console.log('hash ' + hash);
+        solution2Map.set(test_geohash2.toString(), 0);
+        SchnitzelHunt.Solution2Tree.setLeaf(BigInt(0), hash);
+
+        // solution 3 
+        const test_geohash3 = geohash.encode_int(48.2086269882, 16.3725081062);
+        console.log('test_geohash3 ' + test_geohash3);
+        hash = Poseidon.hash(Field(+test_geohash3).toFields());
+        console.log('hash ' + hash);
+        solution3Map.set(test_geohash3.toString(), 0);
+        SchnitzelHunt.Solution3Tree.setLeaf(BigInt(0), hash);
         setSolution1Map(solution1Map);
         setSolution2Map(solution2Map);
+        setSolution3Map(solution3Map);
+      }
+
+      // setup merkle trees for solution
+      if (!doQuick && solution1Map.size == 0) {
+        console.log('Building solution merkle trees..');
+
+        let solution1Map = SchnitzelHunt.generate_solution_tree(48.2107356534, 16.3736139593, 48.2108048225, 16.3737322524, SchnitzelHunt.Solution1Tree);
+        let solution2Map = SchnitzelHunt.generate_solution_tree(
+          48.2079049216,
+          16.3716384673,
+          48.2079451583,
+          16.3717048444,
+          SchnitzelHunt.Solution2Tree
+        );
+        let solution3Map = SchnitzelHunt.generate_solution_tree(
+          48.2086269882,
+          16.3725081062,
+          48.2086858438,
+          16.3725546748,
+          SchnitzelHunt.Solution3Tree
+        );
+
+        setSolution1Map(solution1Map);
+        setSolution2Map(solution2Map);
+        setSolution3Map(solution3Map);
+
       } else {
         console.log('Solution1 Merkle tree already built: '+solution1Map.size);
         console.log('Solution2 Merkle tree already built: '+solution2Map.size);
+        console.log('Solution3 Merkle tree already built: '+solution3Map.size);
       }
+
+      console.log('root 1' + SchnitzelHunt.Solution1Tree.getRoot());
+      console.log('root 2' + SchnitzelHunt.Solution2Tree.getRoot());
+      console.log('root 2' + SchnitzelHunt.Solution3Tree.getRoot());
       
-      let zkapp = await SchitzelHunt.deployApp(SchitzelHunt.Solution1Tree.getRoot(), SchitzelHunt.Solution2Tree.getRoot(), doProof);
+      let zkapp = await SchnitzelHunt.deployApp(SchnitzelHunt.Solution1Tree.getRoot(), SchnitzelHunt.Solution2Tree.getRoot(), SchnitzelHunt.Solution3Tree.getRoot(), doProof);
       setZkapp(zkapp);
       setLoading(false);
     }
@@ -112,38 +156,60 @@ function MyApp() {
   const submit = async (zkapp) => {
     console.log('Submitting location: '+lat+','+lng);
     setLoading(true);
-    SchitzelHunt = await import('../../contracts/build/src/Schnitzel.js');
-    let location = new SchitzelHunt.LocationCheck(48.2107958217, 16.3736155926);
-    await zkapp.hunt(location, solution1Map, solution2Map, +currStep, doProof);
+    SchnitzelHunt = await import('../../contracts/build/src/Schnitzel.js'); 
     let step = zkapp.getState().step;
-    console.log('step '+step);
+    console.log('before submitting location step is : '+step);
     // let location = new CheckIn.LocationCheck(lat, lng);
+    // hardcode values for local testing -> replace this by adding e2e test
+    let location;
     switch (step) {
       case '0':
-        console.log('step is still 0 after submitting location');
-        setSubmissionError(true);
+        location = new SchnitzelHunt.LocationCheck(48.2107958217, 16.3736155926);
         break;
       case '1':
-        if (+currStep.toString() < step) {
-          setCurrStep(step);
-          setSubmissionSuccess(true);
-        } else {
-          console.error("discrepancy between steps count");
-        }
+        location = new SchnitzelHunt.LocationCheck(48.2079410492, 16.3716678382);
+        break;
       case '2':
-        if (+currStep.toString() < step) {
-          setCurrStep(step);
-          setSubmissionSuccess(true);
-        } else {
-          console.error("discrepancy between steps count");
-        }
-        await zkapp.finish(doProof);
-        let solved = zkapp.getState().solved;
-        if (solved == true) {
-          console.log('yay');
-        }
+        location = new SchnitzelHunt.LocationCheck(48.2086269882, 16.3725081062);
+        break;
       default:
         break;
+    }
+    await zkapp.hunt(location, solution1Map, solution2Map, solution3Map, +currStep, doProof);
+    step = zkapp.getState().step;
+    console.log('after submitting location step is now : '+step);
+    if (currStep == +step) {
+      console.error("solving riddle unsuccessful: did not increase step count");
+      setSubmissionError(true);
+    } else {
+      switch (step) {
+        case '0':
+          console.log('step is still 0 after submitting location');
+          break;
+        case '1':
+          console.log('case step 1');
+          setCurrStep(step);
+          setSubmissionSuccess(true);
+          break;
+        case '2':
+          console.log('case step 2');
+          setCurrStep(step);
+          setSubmissionSuccess(true);
+          break;
+        case '3':
+          console.log('completed all steps, game is finished...');
+          await zkapp.finish(doProof);
+          let solved = zkapp.getState().solved;
+          if (solved == true) {
+            console.log('successfully finished game!');
+            setSubmissionSuccess(false);
+            setShowRiddle3(false);
+            setFinished(true);
+          }
+        default:
+          console.error("invalid step");
+          break;
+      }
     }
     setLat(null);
     setLng(null);
@@ -182,14 +248,29 @@ function MyApp() {
             }
             {showRiddle2 &&
               <Box className={styles.riddleBox}>
-                <p className={styles.riddle}>Stand close to me half wood / half iron, my creator foold by a diabolic tyran. No key, no hammer and no rock has ever managed to unlock. </p>
+                <p className={styles.riddle}>Stand close to me half wood / half iron, my creator fooled by a diabolic tyran. No key, no hammer and no rock has ever managed to unlock. </p>
+                { currStep == 2 && <FontAwesomeIcon icon={faArrowRight} onClick={() => {
+                  setShowRiddle2(false);
+                  setShowRiddle3(true);
+                  setSubmissionSuccess(false);
+                }} style={{color: '#ffafbd', marginLeft: '4rem'}} size="6x" /> }
               </Box>
             }
-            <Box className={styles.locationBox}>
+            {showRiddle3 &&
+              <Box className={styles.riddleBox}>
+                <p className={styles.riddle}>To free Austria was our dream, we fought to liberate against the regime. We leave a mark for God to read, may they help us to stop the bleed. </p>
+              </Box>
+            }
+            {finished &&
+              <Box className={styles.riddleBox}>
+                <p className={styles.riddle}>Congrats! You successfully hunted the Schnitzel! </p>
+              </Box>
+            }
+            { !showSubmissionSuccess && !finished &&<Box className={styles.locationBox}>
               <p className={styles.location}>
                 Solve by sharing your location 👉 <FontAwesomeIcon icon={faLocationDot} onClick={shareLocation} style={{color: '#ffafbd'}} size="2x" />
               </p>
-            </Box>
+            </Box> }
           {!showSubmissionError && !showSubmissionSuccess && <Box
             className={styles.location}
           >
@@ -226,6 +307,9 @@ function MyApp() {
 
         </Container>
       </div>
+      {finished && <Confetti
+      width={windowSize.width}
+      height={windowSize.height}/>}
       </main>
 
       <footer className={homeStyles.footer}>

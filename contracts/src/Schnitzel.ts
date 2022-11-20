@@ -21,6 +21,7 @@ import {
 } from 'snarkyjs';
 import geohash from 'ngeohash';
 import { tic, toc } from './tictoc.js';
+import { MerkleTree } from 'snarkyjs/dist/node/lib/merkle_tree.js';
 
 /**
  * Basic Example
@@ -34,12 +35,19 @@ import { tic, toc } from './tictoc.js';
 
 await isReady;
 
-export { deployApp, MerkleWitness, Solution1Tree, Solution2Tree };
-export type { CheckinInterface };
+export {
+  deployApp,
+  MerkleWitness,
+  Solution1Tree,
+  Solution2Tree,
+  Solution3Tree,
+};
+export type { SchnitzelInterface };
 
 const height = 11;
 const Solution1Tree = new Experimental.MerkleTree(height);
 const Solution2Tree = new Experimental.MerkleTree(height);
+const Solution3Tree = new Experimental.MerkleTree(height);
 class MerkleWitness extends Experimental.MerkleWitness(height) {}
 
 export class LocationCheck extends CircuitValue {
@@ -51,6 +59,9 @@ export class LocationCheck extends CircuitValue {
     this.sharedGeoHash = Field(geoHash);
     console.log('shared location: ' + lat + ' ' + long);
     console.log('convert to geoHash: ' + this.sharedGeoHash);
+    console.log(
+      'geoHash hash: ' + Poseidon.hash(this.sharedGeoHash.toFields())
+    );
   }
 
   hash(): Field {
@@ -63,6 +74,7 @@ export class SchnitzelHuntApp extends SmartContract {
   @state(UInt32) step = State<UInt32>();
   @state(Field) solution1Root = State<Field>();
   @state(Field) solution2Root = State<Field>();
+  @state(Field) solution3Root = State<Field>();
 
   deploy(args: DeployArgs) {
     super.deploy(args);
@@ -72,10 +84,15 @@ export class SchnitzelHuntApp extends SmartContract {
     });
   }
 
-  @method init(solution1Root: Field, solution2Root: Field) {
+  @method init(
+    solution1Root: Field,
+    solution2Root: Field,
+    solution3Root: Field
+  ) {
     this.finished.set(new Bool(false));
     this.solution1Root.set(solution1Root);
     this.solution2Root.set(solution2Root);
+    this.solution3Root.set(solution3Root);
     this.step.set(UInt32.zero);
   }
 
@@ -87,7 +104,8 @@ export class SchnitzelHuntApp extends SmartContract {
 
     let step = this.step.get();
     this.step.assertEquals(step);
-    this.step.set(step.add(UInt32.one));
+    step = step.add(UInt32.one);
+    this.step.set(step);
 
     const solution1Root = this.solution1Root.get();
     this.solution1Root.assertEquals(solution1Root);
@@ -95,9 +113,18 @@ export class SchnitzelHuntApp extends SmartContract {
     const solution2Root = this.solution2Root.get();
     this.solution2Root.assertEquals(solution2Root);
 
-    const isFirstStep: Bool = step.equals(UInt32.one);
+    const solution3Root = this.solution3Root.get();
+    this.solution3Root.assertEquals(solution3Root);
 
-    let root_to_check = Circuit.if(isFirstStep, solution1Root, solution2Root);
+    const isFirstStep: Bool = step.equals(UInt32.one);
+    const isSecondStep: Bool = step.equals(UInt32.from(2));
+    const isThirdStep: Bool = step.equals(UInt32.from(3));
+
+    const root_to_check = Circuit.switch(
+      [isFirstStep, isSecondStep, isThirdStep],
+      Field,
+      [solution1Root, solution2Root, solution3Root]
+    );
 
     path
       .calculateRoot(
@@ -118,7 +145,7 @@ export class SchnitzelHuntApp extends SmartContract {
 
     let step = this.step.get();
     this.step.assertEquals(step);
-    step.assertEquals(UInt32.from(2)); // should be the last step
+    step.assertEquals(UInt32.from(3)); // should be the last step
 
     this.finished.set(Bool(true));
   }
@@ -128,9 +155,8 @@ let Local = Mina.LocalBlockchain();
 Mina.setActiveInstance(Local);
 const feePayer = Local.testAccounts[0].privateKey;
 
-type CheckinInterface = {
-  // eslint-disable-next-line
-  checkIn(
+type SchnitzelInterface = {
+  hunt(
     // eslint-disable-next-line
     sharedLocation: LocationCheck,
     // eslint-disable-next-line
@@ -138,20 +164,27 @@ type CheckinInterface = {
     // eslint-disable-next-line
     solution2Map: Map<string, number>,
     // eslint-disable-next-line
-    step: number
+    solution3Map: Map<string, number>,
+    // eslint-disable-next-line
+    step: number,
+    // eslint-disable-next-line
+    doProof: boolean
   ): Promise<void>;
-  getState(): { solved: boolean };
-  finish(): Promise<void>;
+  getState(): { solved: boolean; step: string };
+  // eslint-disable-next-line
+  finish(doProof: boolean): Promise<void>;
 };
 
 async function deployApp(
   solution1Root: Field,
   solution2Root: Field,
+  solution3Root: Field,
   doProof: boolean
 ) {
   console.log('Deploying Checkin App ....');
   console.log('Merkle root 1 deployApp ' + solution1Root);
   console.log('Merkle root 2 deployApp ' + solution2Root);
+  console.log('Merkle root 3 deployApp ' + solution3Root);
 
   let zkappKey = PrivateKey.random();
   let zkappAddress = zkappKey.toPublicKey();
@@ -169,6 +202,7 @@ async function deployApp(
       sharedLocation: LocationCheck,
       solution1Map: Map<string, number>,
       solution2Map: Map<string, number>,
+      solution3Map: Map<string, number>,
       step: number,
       doProof: boolean
     ) {
@@ -178,6 +212,7 @@ async function deployApp(
         sharedLocation,
         solution1Map,
         solution2Map,
+        solution3Map,
         step,
         doProof
       );
@@ -218,7 +253,7 @@ async function deployApp(
   try {
     let tx = await Mina.transaction(feePayer, () => {
       console.log('Initialising smart contract...');
-      zkapp.init(solution1Root, solution2Root);
+      zkapp.init(solution1Root, solution2Root, solution3Root);
       if (!doProof) zkapp.sign(zkappKey);
     });
     if (doProof) {
@@ -241,17 +276,16 @@ async function hunt(
   sharedLocation: LocationCheck,
   solution1Map: Map<string, number>,
   solution2Map: Map<string, number>,
+  solution3Map: Map<string, number>,
   step: number, // should be UInt32?
   doProof: boolean
 ) {
   console.log('Initiating schnitzelhunt process...');
   console.log('solution1Map ' + solution1Map.size);
   console.log('solution2Map ' + solution2Map.size);
-  console.log('solutistepon2Map ' + step);
+  console.log('solution3Map ' + solution3Map.size);
+  console.log('step ' + step);
   let zkapp = new SchnitzelHuntApp(zkappAddress);
-  console.log('zkapp solution1Root ' + zkapp.solution1Root);
-  console.log('zkapp solution2Root ' + zkapp.solution2Root);
-  console.log('zkapp balance ' + zkapp.balance);
   try {
     let txn = await Mina.transaction(feePayer, () => {
       let idx;
@@ -286,6 +320,20 @@ async function hunt(
           );
           witness = new MerkleWitness(Solution2Tree.getWitness(BigInt(+idx)));
           break;
+        case 2:
+          console.log('attempt to solve step 2');
+          idx = solution3Map.get(sharedLocation.sharedGeoHash.toString());
+          if (idx == undefined) {
+            throw console.log('Location shared is incorrect!');
+          }
+          console.log(
+            'index: ' +
+              idx +
+              ' geohash: ' +
+              sharedLocation.sharedGeoHash.toString()
+          );
+          witness = new MerkleWitness(Solution3Tree.getWitness(BigInt(+idx)));
+          break;
         default:
           throw console.log('Invalid step: ' + step);
       }
@@ -309,7 +357,7 @@ async function hunt(
     await txn.send().wait();
   } catch (err) {
     console.log('Solution rejected!');
-    console.error(err);
+    console.error('Solution rejected: ' + err);
   }
 }
 
@@ -336,7 +384,7 @@ async function finish(
     }
     await txn.send().wait();
   } catch (err) {
-    console.log('Solution rejected!');
+    console.log('Fininsh process rejected!');
     console.error(err);
   }
 }
@@ -346,4 +394,28 @@ function getState(zkappAddress: PublicKey) {
   let solved = zkapp.finished.get().toBoolean();
   let step = zkapp.step.get().toString();
   return { solved, step };
+}
+
+export function generate_solution_tree(
+  minlat: number,
+  minlong: number,
+  maxlat: number,
+  maxlong: number,
+  tree: MerkleTree
+): Map<string, number> {
+  let solutionMap = new Map<string, number>();
+  const solution = geohash
+    .bboxes_int(minlat, minlong, maxlat, maxlong)
+    .toString()
+    .split(',');
+  console.log('length solution 1 ' + solution.length);
+  for (let index = 0; index < solution.length; index++) {
+    console.log('index: ' + index + ' geohash: ' + solution[index]);
+    let map_index = BigInt(index);
+    let hash = Poseidon.hash(Field(+solution[index]).toFields());
+    console.log('index: ' + index + ' geohash HASH: ' + hash);
+    solutionMap.set(solution[index], index);
+    tree.setLeaf(map_index, hash);
+  }
+  return solutionMap;
 }
