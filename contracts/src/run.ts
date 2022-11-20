@@ -51,7 +51,7 @@ if (doQuick) {
   Solution3Map.set(geohash_solution3.toString(), 0);
   Solution3Tree.setLeaf(BigInt(0), hash3);
 } else {
-  tic('read solutions into memory');
+  tic('build solution merkle trees');
   // write_solution_map_to_file(
   //   'solution1.txt',
   //   48.2107356534,

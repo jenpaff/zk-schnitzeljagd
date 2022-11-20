@@ -163,9 +163,7 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 1
       const locationInstanceStep1 = new LocationCheck(
-        // eslint-disable-next-line
         48.21073696017265,
-        // eslint-disable-next-line
         16.373611986637115
       );
       let txn = await Mina.transaction(deployerAccount, () => {
@@ -186,9 +184,7 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 2
       const locationInstanceStep2 = new LocationCheck(
-        // eslint-disable-next-line
         48.20790454745293,
-        // eslint-disable-next-line
         16.371637880802155
       );
       txn = await Mina.transaction(deployerAccount, () => {
@@ -209,10 +205,8 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 3
       const locationInstanceStep3 = new LocationCheck(
-        // eslint-disable-next-line
-        48.208550959825516,
-        // eslint-disable-next-line
-        16.372394263744354
+        48.2085509598,
+        16.3723942637
       );
       txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
@@ -251,10 +245,8 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 1 with wrong location
       const wronglocationInstanceStep1 = new LocationCheck(
-        // eslint-disable-next-line
-        48.41073696017265,
-        // eslint-disable-next-line
-        16.473611986637115
+        48.4107369601,
+        16.4736119866
       );
 
       try {
@@ -284,10 +276,8 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 1 with correct location
       const correctlocationInstanceStep1 = new LocationCheck(
-        // eslint-disable-next-line
-        48.210804015398026,
-        // eslint-disable-next-line
-        16.37370854616165
+        48.2108040153,
+        16.3737085461
       );
       let txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
@@ -308,10 +298,8 @@ describe('Schnitzelhunt', () => {
       // solve riddle 2 with wrong location
       try {
         const wronglocationInstanceStep2 = new LocationCheck(
-          // eslint-disable-next-line
-          48.10790454745293,
-          // eslint-disable-next-line
-          16.571637880802155
+          48.1079045474,
+          16.5716378808
         );
         txn = await Mina.transaction(deployerAccount, () => {
           let witness = getWitness(
@@ -339,10 +327,8 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 2 with correct location
       const correctLocationInstanceStep2 = new LocationCheck(
-        // eslint-disable-next-line
-        48.20794478058815,
-        // eslint-disable-next-line
-        16.371686160564423
+        48.2079447806,
+        16.3716861606
       );
       txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
@@ -363,10 +349,8 @@ describe('Schnitzelhunt', () => {
       try {
         // solve riddle 3 with incorrect location
         const wrongLocationInstanceStep3 = new LocationCheck(
-          // eslint-disable-next-line
-          48.508550959825516,
-          // eslint-disable-next-line
-          16.572394263744354
+          48.5085509598,
+          16.5723942638
         );
         txn = await Mina.transaction(deployerAccount, () => {
           let witness = getWitness(
@@ -408,8 +392,8 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 3 with correct location
       const locationInstanceStep3 = new LocationCheck(
-        48.208693116903305,
-        16.372560560703278
+        48.208693117,
+        16.3725605607
       );
       txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(

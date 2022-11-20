@@ -1,6 +1,6 @@
 # zk Schnitzelhunt
 
-*Some call it treasure hunt, some call it scavenger hunt, in my home country Austria we call it Schnitzeljagd (I half-translated it for your convenience)*
+*Some call it treasure hunt, some call it scavenger hunt, in my home country Austria we call it Schnitzeljagd (I half-translated it for your convenience).*
 
 ## Treasure Hunt / Scavenger Hunt
 
@@ -10,10 +10,10 @@ see [Wikipedia](https://en.wikipedia.org/wiki/Scavenger_hunt)
 
 ## How the game works
 
-The game works as follows: A user will be presented a riddle. The riddle will gives a lead to a location in the Vienna city center. To solve the riddle the user will have to find the place in question and share their location at the correct spot. Solving one riddle will unlock the next until at the end, the user will have hunted the Schnitzel.
+The game works as follows: A user will be presented a riddle. The riddle will gives a lead to a location in the Vienna city center. To solve the riddle the user will have to find the place in question and share their location within a valid range. Solving one riddle will unlock the next until at the end, the user will have hunted the Schnitzel.
 
 ## The zk in the Schnitzelhunt
-TODO: add a short summary on the implementation
+The zk stands for *zero knowledge* and it's what enables you to (cryptographically) prove that you've successfully completed the game whilst keeping the solutions as well as your shared location private.
 
 ## Repository structure
 
@@ -22,3 +22,5 @@ TODO: add a short summary on the implementation
 - And further documentation on the technical implementation as well as mockups can be found [here](./docs/)
 
 **Happy Schnitzelhunting!** :sunny:
+
+P.S. no animals were harmed during development of this app 🐷

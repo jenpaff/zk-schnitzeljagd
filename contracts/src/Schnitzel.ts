@@ -131,10 +131,6 @@ export class SchnitzelHuntApp extends SmartContract {
         Poseidon.hash(locationCheckInstance.sharedGeoHash.toFields())
       )
       .assertEquals(root_to_check);
-
-    // const isLastStep: Bool = step.equals(UInt32.from(2));
-    // const finished = Circuit.if(isLastStep, Bool(true), Bool(false));
-    // this.finished.set(finished);
   }
 
   @method finish() {
@@ -232,15 +228,18 @@ async function deployApp(
       console.log('Funding account with feePayer ' + feePayer.toJSON());
       AccountUpdate.fundNewAccount(feePayer);
       console.log('Deploying smart contract...');
-      zkapp.deploy({ zkappKey: zkappKey, verificationKey });
       if (!doProof) {
+        tic('deploy');
         zkapp.deploy({ zkappKey });
         zkapp.setPermissions({
           ...Permissions.default(),
           editState: Permissions.proofOrSignature(),
         });
+        toc();
       } else {
+        tic('deploy');
         zkapp.deploy({ verificationKey, zkappKey });
+        toc();
       }
     });
     await tx.send().wait();
@@ -257,8 +256,9 @@ async function deployApp(
       if (!doProof) zkapp.sign(zkappKey);
     });
     if (doProof) {
-      console.log('proving...');
+      tic('prove');
       await tx.prove();
+      toc();
     }
     await tx.send().wait();
 
