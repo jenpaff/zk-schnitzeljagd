@@ -20,7 +20,7 @@ let SchnitzelHunt; // this will hold the dynamically imported './Schnitzel.js'
   when turned off it will skip generating a proof for correct solutions, 
   may be used for quick testing of the logic
 */
-let doQuick = false;
+let doQuick = true;
 /*
   when turned off it only adds one geohash solution to the solutionTree (used for quick testing/showcasing) 
   rather than loading the whole solution tree to allow for a wider range of allowed locations per solution
@@ -238,7 +238,7 @@ function MyApp() {
         <Container fixed>
             { showRiddle1 &&
               <Box className={styles.riddleBox}>
-                <p className={styles.riddle}>I've got an anchor, but have no sail. My sound makes Hooks' mind derail. Stand underneath, close in the middle, share your location to solve this riddle. </p>
+                <p id="riddle1" className={styles.riddle}>I've got an anchor, but have no sail. My sound makes Hooks' mind derail. Stand underneath, close in the middle, share your location to solve this riddle. </p>
                 { currStep == 1 && <FontAwesomeIcon icon={faArrowRight} onClick={() => {
                   setShowRiddle1(false);
                   setShowRiddle2(true);
@@ -267,8 +267,8 @@ function MyApp() {
               </Box>
             }
             { !showSubmissionSuccess && !finished &&<Box className={styles.locationBox}>
-              <p className={styles.location}>
-                Solve by sharing your location 👉 <FontAwesomeIcon icon={faLocationDot} onClick={shareLocation} style={{color: '#ffafbd'}} size="2x" />
+              <p id="share-location" className={styles.location}>
+                Solve by sharing your location 👉 <FontAwesomeIcon id="share-location-btn" icon={faLocationDot} onClick={shareLocation} style={{color: '#ffafbd'}} size="2x" />
               </p>
             </Box> }
           {!showSubmissionError && !showSubmissionSuccess && <Box
