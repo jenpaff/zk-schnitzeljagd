@@ -70,13 +70,3 @@ Performance could surely be improved (see list above). I've kept track of the ti
 - proofing completion of game           107.141 sec
 
 Since proofing time takes a while, for testing I've included a flag to toggle proof step on/off in the test script, as well as in the UI.
-
-## Ideas to extend this project beyond the current scope
-- [ ] Make use of recursion API to generate proof at the end of the game
-- [ ] add e2e test to ensure stability of the UI <> contract
-- [ ] configure pipeline on github
-- [ ] Conduct manual tests to test the selected ranges (laptop)
-- [ ] User setup/login
-- [ ] Conduct manual test with deployed app (phone/tablet)
-- [ ] Leaderboard: present proofs of winners 
-- [ ] Include a timer 

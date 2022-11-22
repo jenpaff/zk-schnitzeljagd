@@ -57,8 +57,6 @@ export class LocationCheck extends CircuitValue {
     super();
     var geoHash: number = geohash.encode_int(lat, long);
     this.sharedGeoHash = Field(geoHash);
-    console.log('shared location: ' + lat + ' ' + long);
-    console.log('convert to geoHash: ' + this.sharedGeoHash);
     console.log(
       'geoHash hash: ' + Poseidon.hash(this.sharedGeoHash.toFields())
     );
@@ -178,9 +176,9 @@ async function deployApp(
   doProof: boolean
 ) {
   console.log('Deploying Checkin App ....');
-  console.log('Merkle root 1 deployApp ' + solution1Root);
-  console.log('Merkle root 2 deployApp ' + solution2Root);
-  console.log('Merkle root 3 deployApp ' + solution3Root);
+  console.log('Merkle root 1 ' + solution1Root);
+  console.log('Merkle root 2 ' + solution2Root);
+  console.log('Merkle root 3 ' + solution3Root);
 
   let zkappKey = PrivateKey.random();
   let zkappAddress = zkappKey.toPublicKey();
@@ -225,7 +223,7 @@ async function deployApp(
 
   try {
     let tx = await Mina.transaction(feePayer, () => {
-      console.log('Funding account with feePayer ' + feePayer.toJSON());
+      console.log('Funding account');
       AccountUpdate.fundNewAccount(feePayer);
       console.log('Deploying smart contract...');
       if (!doProof) {
@@ -250,17 +248,19 @@ async function deployApp(
   }
 
   try {
-    let tx = await Mina.transaction(feePayer, () => {
+    let txn = await Mina.transaction(feePayer, () => {
       console.log('Initialising smart contract...');
       zkapp.init(solution1Root, solution2Root, solution3Root);
       if (!doProof) zkapp.sign(zkappKey);
     });
     if (doProof) {
       tic('prove');
-      await tx.prove();
+      await txn.prove().then((tx) => {
+        tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
+      });
       toc();
     }
-    await tx.send().wait();
+    await txn.send().wait();
 
     console.log('Contract successfully deployed and initialized!');
   } catch (error) {
@@ -281,9 +281,6 @@ async function hunt(
   doProof: boolean
 ) {
   console.log('Initiating schnitzelhunt process...');
-  console.log('solution1Map ' + solution1Map.size);
-  console.log('solution2Map ' + solution2Map.size);
-  console.log('solution3Map ' + solution3Map.size);
   console.log('step ' + step);
   let zkapp = new SchnitzelHuntApp(zkappAddress);
   try {
@@ -298,12 +295,6 @@ async function hunt(
           if (idx == undefined) {
             throw console.log('Location shared is incorrect!');
           }
-          console.log(
-            'index: ' +
-              idx +
-              ' geohash: ' +
-              sharedLocation.sharedGeoHash.toString()
-          );
           witness = new MerkleWitness(Solution1Tree.getWitness(BigInt(+idx)));
           break;
         case 1:
@@ -312,12 +303,6 @@ async function hunt(
           if (idx == undefined) {
             throw console.log('Location shared is incorrect!');
           }
-          console.log(
-            'index: ' +
-              idx +
-              ' geohash: ' +
-              sharedLocation.sharedGeoHash.toString()
-          );
           witness = new MerkleWitness(Solution2Tree.getWitness(BigInt(+idx)));
           break;
         case 2:
@@ -326,12 +311,6 @@ async function hunt(
           if (idx == undefined) {
             throw console.log('Location shared is incorrect!');
           }
-          console.log(
-            'index: ' +
-              idx +
-              ' geohash: ' +
-              sharedLocation.sharedGeoHash.toString()
-          );
           witness = new MerkleWitness(Solution3Tree.getWitness(BigInt(+idx)));
           break;
         default:
@@ -403,19 +382,18 @@ export function generate_solution_tree(
   maxlong: number,
   tree: MerkleTree
 ): Map<string, number> {
+  console.log('generating solution tree...');
   let solutionMap = new Map<string, number>();
   const solution = geohash
     .bboxes_int(minlat, minlong, maxlat, maxlong)
     .toString()
     .split(',');
-  console.log('length solution 1 ' + solution.length);
   for (let index = 0; index < solution.length; index++) {
-    console.log('index: ' + index + ' geohash: ' + solution[index]);
     let map_index = BigInt(index);
     let hash = Poseidon.hash(Field(+solution[index]).toFields());
-    console.log('index: ' + index + ' geohash HASH: ' + hash);
     solutionMap.set(solution[index], index);
     tree.setLeaf(map_index, hash);
   }
+  console.log('finished merkle tree generation');
   return solutionMap;
 }

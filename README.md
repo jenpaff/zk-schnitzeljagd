@@ -21,6 +21,16 @@ The zk stands for *zero knowledge* and it's what enables you to (cryptographical
 - The UI lives [here](./ui/pages/)
 - And further documentation on the technical implementation as well as mockups can be found [here](./docs/)
 
+## Ideas to extend this project beyond the current scope
+- [ ] Make use of recursion API to generate proof at the end of the game
+- [ ] add e2e test to ensure stability of the UI <> contract
+- [ ] configure pipeline on github
+- [ ] Conduct manual tests to test the selected ranges (laptop)
+- [ ] User setup/login
+- [ ] Conduct manual test with deployed app (phone/tablet)
+- [ ] Leaderboard: present proofs of winners 
+- [ ] Include a timer 
+
 **Happy Schnitzelhunting!** :sunny:
 
 P.S. no animals were harmed during development of this app 🐷

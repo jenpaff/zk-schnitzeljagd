@@ -13,4 +13,4 @@ coverage
 keys
 
 # solution geohashes
-solution1_geohashes.txt
+solution*.txt

@@ -29,25 +29,19 @@ let Solution3Map = new Map<string, number>(); // mapping geohash to index
 if (doQuick) {
   // solution 1
   const geohash_solution1 = geohash.encode_int(48.2107958217, 16.3736155926);
-  console.log('geohash_solution1 ' + geohash_solution1);
   let hash = Poseidon.hash(Field(+geohash_solution1).toFields());
-  console.log('geohash_solution1 hash ' + hash);
   Solution1Map.set(geohash_solution1.toString(), 0);
   Solution1Tree.setLeaf(BigInt(0), hash);
 
   // solution 2
   const geohash_solution2 = geohash.encode_int(48.2079410492, 16.3716678382);
-  console.log('geohash_solution2 ' + geohash_solution2);
   let hash2 = Poseidon.hash(Field(+geohash_solution2).toFields());
-  console.log('geohash_solution2 hash ' + hash2);
   Solution2Map.set(geohash_solution2.toString(), 0);
   Solution2Tree.setLeaf(BigInt(0), hash2);
 
-  // TODO: solution 3
+  // solution 3
   const geohash_solution3 = geohash.encode_int(48.2086269882, 16.3725081062);
-  console.log('geohash_solution3 ' + geohash_solution3);
   let hash3 = Poseidon.hash(Field(+geohash_solution3).toFields());
-  console.log('geohash_solution3 hash ' + hash3);
   Solution3Map.set(geohash_solution3.toString(), 0);
   Solution3Tree.setLeaf(BigInt(0), hash3);
 } else {
@@ -96,10 +90,6 @@ if (doQuick) {
   );
   toc();
 }
-
-console.log('root 1' + Solution1Tree.getRoot());
-console.log('root 2' + Solution2Tree.getRoot());
-console.log('root 2' + Solution3Tree.getRoot());
 
 // deploy checkIn zkapp
 let zkapp: SchnitzelInterface = await deployApp(
