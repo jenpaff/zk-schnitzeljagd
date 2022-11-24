@@ -22,11 +22,13 @@ The zk stands for *zero knowledge* and it's what enables you to (cryptographical
 - And further documentation on the technical implementation as well as mockups can be found [here](./docs/)
 
 ## Ideas to extend this project beyond the current scope
-- [ ] Make use of recursion API to generate proof at the end of the game
-- [ ] add e2e test to ensure stability of the UI <> contract
-- [ ] configure pipeline on github
-- [ ] Conduct manual tests to test the selected ranges (laptop)
+- [x] add e2e test to ensure stability of the UI <> contract
+- [x] configure pipeline on github
+- [x] Build smart contract using recursion API
+- [ ] Update snarkyJS version
+- [ ] Test selected bounding boxes
 - [ ] User setup/login
+- [ ] Deploy on Berkley
 - [ ] Conduct manual test with deployed app (phone/tablet)
 - [ ] Leaderboard: present proofs of winners 
 - [ ] Include a timer 

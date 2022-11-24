@@ -25,7 +25,7 @@ let doQuick = false;
   when turned off it only adds one geohash solution to the solutionTree (used for quick testing/showcasing) 
   rather than loading the whole solution tree to allow for a wider range of allowed locations per solution
 */
-let doProof = true;
+let doProof = false;
 
 function MyApp() {
 
@@ -225,7 +225,7 @@ function MyApp() {
         <Container fixed>
             { showRiddle1 &&
               <Box className={styles.riddleBox}>
-                <p className={styles.riddle}>I've got an anchor, but have no sail. My sound makes Hooks' mind derail. Stand underneath, close in the middle, share your location to solve this riddle. </p>
+                <p data-testid="riddle1" className={styles.riddle}>I've got an anchor, but have no sail. My sound makes Hooks' mind derail. Stand underneath, close in the middle, share your location to solve this riddle. </p>
                 { currStep == 1 && <FontAwesomeIcon icon={faArrowRight} onClick={() => {
                   setShowRiddle1(false);
                   setShowRiddle2(true);
@@ -235,7 +235,7 @@ function MyApp() {
             }
             {showRiddle2 &&
               <Box className={styles.riddleBox}>
-                <p className={styles.riddle}>Stand close to me half wood / half iron, my creator fooled by a diabolic tyran. No key, no hammer and no rock has ever managed to unlock. </p>
+                <p data-testid="riddle2" className={styles.riddle}>Stand close to me half wood / half iron, my creator fooled by a diabolic tyran. No key, no hammer and no rock has ever managed to unlock. </p>
                 { currStep == 2 && <FontAwesomeIcon icon={faArrowRight} onClick={() => {
                   setShowRiddle2(false);
                   setShowRiddle3(true);
@@ -245,12 +245,12 @@ function MyApp() {
             }
             {showRiddle3 &&
               <Box className={styles.riddleBox}>
-                <p className={styles.riddle}>To free Austria was our dream, we fought to liberate against the regime. We leave a mark for God to read, may they help us to stop the bleed. </p>
+                <p data-testid="riddle3" className={styles.riddle}>To free Austria was our dream, we fought to liberate against the regime. We leave a mark for God to read, may they help us to stop the bleed. </p>
               </Box>
             }
             {finished &&
               <Box className={styles.riddleBox}>
-                <p className={styles.riddle}>Congrats! You successfully hunted the Schnitzel! </p>
+                <p data-testid="finished-message" className={styles.riddle}>Congrats! You successfully hunted the Schnitzel! </p>
               </Box>
             }
             { !showSubmissionSuccess && !finished &&<Box className={styles.locationBox}>
@@ -261,13 +261,14 @@ function MyApp() {
           {!showSubmissionError && !showSubmissionSuccess && <Box
             className={styles.location}
           >
-            <p>
+            <p data-testid="location" >
               {lat && <p>Latitude: {lat}, </p>}
               {lng && <p>Longitude: {lng}</p>}
             </p>
             <p style={{ marginLeft: '20px', marginTop: '10px' }}>
               {lat && lng && (
                 <Button
+                  data-testid="submit-location" 
                   variant="contained"
                   onClick={()=>{
                     submit(zkapp);
