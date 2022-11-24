@@ -8,10 +8,11 @@ import {
   PublicKey,
   AccountUpdate,
   Bool,
-  Experimental,
+  MerkleTree,
+  MerkleWitness,
   UInt32,
 } from 'snarkyjs';
-import { MerkleTree } from 'snarkyjs/dist/node/lib/merkle_tree';
+import geohash from 'ngeohash';
 
 /*
  * This file specifies how to test the `Add` example smart contract. It is safe to delete this file and replace
@@ -20,11 +21,13 @@ import { MerkleTree } from 'snarkyjs/dist/node/lib/merkle_tree';
  * See https://docs.minaprotocol.com/zkapps for more info.
  */
 
+let proofsEnabled = false;
+
 const height = 3;
-const TestTree1 = new Experimental.MerkleTree(height);
-const TestTree2 = new Experimental.MerkleTree(height);
-const TestTree3 = new Experimental.MerkleTree(height);
-class TestMerkleWitness extends Experimental.MerkleWitness(height) {}
+const TestTree1 = new MerkleTree(height);
+const TestTree2 = new MerkleTree(height);
+const TestTree3 = new MerkleTree(height);
+class TestMerkleWitness extends MerkleWitness(height) {}
 
 let solution1Map = new Map<string, number>();
 solution1Map.set('3669811486653801', 0); // 48.21073696017265,16.373611986637115
@@ -32,19 +35,19 @@ solution1Map.set('3669811487353409', 1); // 48.21077987551689,16.373665630817413
 solution1Map.set('3669811487353732', 2); // 48.210804015398026,16.37370854616165
 
 TestTree1.setLeaf(
-  BigInt(0),
+  0n,
   Field(
     '6166174589607614516308361836754733633738565520449452769793840646233268800940'
   )
 );
 TestTree1.setLeaf(
-  BigInt(1),
+  1n,
   Field(
     '15118923562589814738126022296109929047711772082649344103429463519139511326373'
   )
 );
 TestTree1.setLeaf(
-  BigInt(2),
+  2n,
   Field(
     '11837919099452773578795736717129807359535357405278737195568640900396436319681'
   )
@@ -98,40 +101,24 @@ TestTree3.setLeaf(
   )
 );
 
-function createLocalBlockchain() {
-  const Local = Mina.LocalBlockchain();
-  Mina.setActiveInstance(Local);
-  return Local.testAccounts[0].privateKey;
-}
-
-async function localDeploy(
-  zkAppInstance: SchnitzelHuntApp,
-  zkAppPrivatekey: PrivateKey,
-  deployerAccount: PrivateKey
-) {
-  const txn = await Mina.transaction(deployerAccount, () => {
-    AccountUpdate.fundNewAccount(deployerAccount);
-    zkAppInstance.init(
-      TestTree1.getRoot(),
-      TestTree2.getRoot(),
-      TestTree3.getRoot()
-    );
-    zkAppInstance.deploy({ zkappKey: zkAppPrivatekey });
-    zkAppInstance.sign(zkAppPrivatekey);
-  });
-  await txn.send().wait();
-}
-
 describe('Schnitzelhunt', () => {
   let deployerAccount: PrivateKey,
     zkAppAddress: PublicKey,
     zkAppPrivateKey: PrivateKey;
+  let zkApp: SchnitzelHuntApp;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     await isReady;
-    deployerAccount = createLocalBlockchain();
+    if (proofsEnabled) SchnitzelHuntApp.compile();
+  });
+
+  beforeEach(() => {
+    const Local = Mina.LocalBlockchain({ proofsEnabled });
+    Mina.setActiveInstance(Local);
+    deployerAccount = Local.testAccounts[0].privateKey;
     zkAppPrivateKey = PrivateKey.random();
     zkAppAddress = zkAppPrivateKey.toPublicKey();
+    zkApp = new SchnitzelHuntApp(zkAppAddress);
   });
 
   afterAll(async () => {
@@ -141,97 +128,113 @@ describe('Schnitzelhunt', () => {
     setTimeout(shutdown, 0);
   });
 
+  async function localDeploy(
+    zkAppPrivatekey: PrivateKey,
+    deployerAccount: PrivateKey
+  ) {
+    const txn = await Mina.transaction(deployerAccount, () => {
+      AccountUpdate.fundNewAccount(deployerAccount);
+      zkApp.deploy({ zkappKey: zkAppPrivatekey });
+      zkApp.initState(
+        TestTree1.getRoot(),
+        TestTree2.getRoot(),
+        TestTree3.getRoot()
+      );
+    });
+    await txn.prove();
+    // this tx needs .sign(), because `deploy()` adds an account update that requires signature authorization
+    await txn.sign([zkAppPrivateKey]).send();
+  }
+
   it('generates and deploys the `Schnitzel` smart contract', async () => {
-    const zkAppInstance = new SchnitzelHuntApp(zkAppAddress);
-    await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
-    const root1 = zkAppInstance.solution1Root.get();
+    await localDeploy(zkAppPrivateKey, deployerAccount);
+    const root1 = zkApp.solution1Root.get();
     expect(root1).toEqual(TestTree1.getRoot());
-    const root2 = zkAppInstance.solution2Root.get();
+    const root2 = zkApp.solution2Root.get();
     expect(root2).toEqual(TestTree2.getRoot());
-    const root3 = zkAppInstance.solution3Root.get();
+    const root3 = zkApp.solution3Root.get();
     expect(root3).toEqual(TestTree3.getRoot());
-    const isSolved = zkAppInstance.finished.get();
+    const isSolved = zkApp.finished.get();
     expect(isSolved).toEqual(Bool(false));
-    const step = zkAppInstance.step.get();
+    const step = zkApp.step.get();
     expect(step).toEqual(UInt32.zero);
   });
 
   describe('hunt', () => {
     it('correctly updates the states on the `SchnitzelApp` smart contract if locations shared is correct', async () => {
-      const zkAppInstance = new SchnitzelHuntApp(zkAppAddress);
-      await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
+      await localDeploy(zkAppPrivateKey, deployerAccount);
 
       // solve riddle 1
-      const locationInstanceStep1 = new LocationCheck(
+      let sharedGeoHash = convert_location_to_geohash(
         48.21073696017265,
         16.373611986637115
       );
+      const locationInstanceStep1 = { sharedGeoHash: sharedGeoHash };
       let txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
           solution1Map,
           locationInstanceStep1,
           TestTree1
         );
-        zkAppInstance.hunt(locationInstanceStep1, witness);
-        zkAppInstance.sign(zkAppPrivateKey);
+        zkApp.hunt(locationInstanceStep1, witness);
       });
-      await txn.send().wait();
+      await txn.prove();
+      await txn.send();
 
-      let isSolved = zkAppInstance.finished.get();
+      let isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(false));
-      let step = zkAppInstance.step.get();
+      let step = zkApp.step.get();
       expect(step).toEqual(UInt32.one);
 
       // solve riddle 2
-      const locationInstanceStep2 = new LocationCheck(
+      sharedGeoHash = convert_location_to_geohash(
         48.20790454745293,
         16.371637880802155
       );
+      const locationInstanceStep2 = { sharedGeoHash: sharedGeoHash };
       txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
           solution2Map,
           locationInstanceStep2,
           TestTree2
         );
-        zkAppInstance.hunt(locationInstanceStep2, witness);
-        zkAppInstance.sign(zkAppPrivateKey);
+        zkApp.hunt(locationInstanceStep2, witness);
       });
-      await txn.send().wait();
+      await txn.prove();
+      await txn.send();
 
-      isSolved = zkAppInstance.finished.get();
+      isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(false));
-      step = zkAppInstance.step.get();
+      step = zkApp.step.get();
       expect(step).toEqual(UInt32.from(2));
 
       // solve riddle 3
-      const locationInstanceStep3 = new LocationCheck(
-        48.2085509598,
-        16.3723942637
-      );
+      sharedGeoHash = convert_location_to_geohash(48.2085509598, 16.3723942637);
+      const locationInstanceStep3 = { sharedGeoHash: sharedGeoHash };
       txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
           solution3Map,
           locationInstanceStep3,
           TestTree3
         );
-        zkAppInstance.hunt(locationInstanceStep3, witness);
-        zkAppInstance.sign(zkAppPrivateKey);
+        zkApp.hunt(locationInstanceStep3, witness);
       });
-      await txn.send().wait();
+      await txn.prove();
+      await txn.send();
 
-      isSolved = zkAppInstance.finished.get();
+      isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(false));
-      step = zkAppInstance.step.get();
+      step = zkApp.step.get();
       expect(step).toEqual(UInt32.from(3));
 
       // we can call finish after completing all riddles
       txn = await Mina.transaction(deployerAccount, () => {
-        zkAppInstance.finish();
-        zkAppInstance.sign(zkAppPrivateKey);
+        zkApp.finish();
       });
-      await txn.send().wait();
+      await txn.prove();
+      await txn.send();
 
-      isSolved = zkAppInstance.finished.get();
+      isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(true));
     });
 
@@ -240,15 +243,14 @@ describe('Schnitzelhunt', () => {
      */
 
     it('correctly rejects updating states on the `SchnitzelApp` smart contract if location is not within a valid range', async () => {
-      const zkAppInstance = new SchnitzelHuntApp(zkAppAddress);
-      await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
+      await localDeploy(zkAppPrivateKey, deployerAccount);
 
       // solve riddle 1 with wrong location
-      const wronglocationInstanceStep1 = new LocationCheck(
+      let sharedGeoHash = convert_location_to_geohash(
         48.4107369601,
         16.4736119866
       );
-
+      const wronglocationInstanceStep1 = { sharedGeoHash: sharedGeoHash };
       try {
         let txn = await Mina.transaction(deployerAccount, () => {
           let witness = getWitness(
@@ -256,187 +258,186 @@ describe('Schnitzelhunt', () => {
             wronglocationInstanceStep1,
             TestTree1
           );
-          zkAppInstance.hunt(wronglocationInstanceStep1, witness);
-          zkAppInstance.sign(zkAppPrivateKey);
+          zkApp.hunt(wronglocationInstanceStep1, witness);
         });
-        await txn.send().wait();
+        await txn.prove();
+        await txn.send();
       } catch (error) {
         // expect that root doesn't match
         expect(error).toStrictEqual(
           Error(
-            'assert_equal: 22657597466788901698541444226807265236400668908396123932377849007837396179117 != 17656020856064086815035896224465840329125738486783685496353168480074520833807'
+            '("Error: assert_equal: 22657597466788901698541444226807265236400668908396123932377849007837396179117 != 17656020856064086815035896224465840329125738486783685496353168480074520833807")'
           )
         );
       }
 
-      let isSolved = zkAppInstance.finished.get();
+      let isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(false));
-      let step = zkAppInstance.step.get();
+      let step = zkApp.step.get();
       expect(step).toEqual(UInt32.zero);
 
       // solve riddle 1 with correct location
-      const correctlocationInstanceStep1 = new LocationCheck(
-        48.2108040153,
-        16.3737085461
-      );
+      sharedGeoHash = convert_location_to_geohash(48.2108040153, 16.3737085461);
+      const correctlocationInstanceStep1 = { sharedGeoHash: sharedGeoHash };
       let txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
           solution1Map,
           correctlocationInstanceStep1,
           TestTree1
         );
-        zkAppInstance.hunt(correctlocationInstanceStep1, witness);
-        zkAppInstance.sign(zkAppPrivateKey);
+        zkApp.hunt(correctlocationInstanceStep1, witness);
       });
-      await txn.send().wait();
+      await txn.prove();
+      await txn.send();
 
-      isSolved = zkAppInstance.finished.get();
+      isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(false));
-      step = zkAppInstance.step.get();
+      step = zkApp.step.get();
       expect(step).toEqual(UInt32.one);
 
       // solve riddle 2 with wrong location
       try {
-        const wronglocationInstanceStep2 = new LocationCheck(
+        sharedGeoHash = convert_location_to_geohash(
           48.1079045474,
           16.5716378808
         );
+        const wronglocationInstanceStep2 = { sharedGeoHash: sharedGeoHash };
         txn = await Mina.transaction(deployerAccount, () => {
           let witness = getWitness(
             solution2Map,
             wronglocationInstanceStep2,
             TestTree2
           );
-          zkAppInstance.hunt(wronglocationInstanceStep2, witness);
-          zkAppInstance.sign(zkAppPrivateKey);
+          zkApp.hunt(wronglocationInstanceStep2, witness);
         });
-        await txn.send().wait();
+        await txn.prove();
+        await txn.send();
       } catch (error) {
         // expect that root doesn't match
         expect(error).toStrictEqual(
           Error(
-            'assert_equal: 12450753627767813975741190557151559350681694354027338769272917929121905952769 != 14268066528091662890027047620939943019380177103199989768045413836168034287304'
+            '("Error: assert_equal: 12450753627767813975741190557151559350681694354027338769272917929121905952769 != 14268066528091662890027047620939943019380177103199989768045413836168034287304")'
           )
         );
       }
 
-      isSolved = zkAppInstance.finished.get();
+      isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(false));
-      step = zkAppInstance.step.get();
+      step = zkApp.step.get();
       expect(step).toEqual(UInt32.from(1));
 
       // solve riddle 2 with correct location
-      const correctLocationInstanceStep2 = new LocationCheck(
-        48.2079447806,
-        16.3716861606
-      );
+      sharedGeoHash = convert_location_to_geohash(48.2079447806, 16.3716861606);
+      const correctLocationInstanceStep2 = { sharedGeoHash: sharedGeoHash };
+
       txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
           solution2Map,
           correctLocationInstanceStep2,
           TestTree2
         );
-        zkAppInstance.hunt(correctLocationInstanceStep2, witness);
-        zkAppInstance.sign(zkAppPrivateKey);
+        zkApp.hunt(correctLocationInstanceStep2, witness);
       });
-      await txn.send().wait();
+      await txn.prove();
+      await txn.send();
 
-      isSolved = zkAppInstance.finished.get();
+      isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(false));
-      step = zkAppInstance.step.get();
+      step = zkApp.step.get();
       expect(step).toEqual(UInt32.from(2));
 
       try {
         // solve riddle 3 with incorrect location
-        const wrongLocationInstanceStep3 = new LocationCheck(
+        sharedGeoHash = convert_location_to_geohash(
           48.5085509598,
           16.5723942638
         );
+        const wrongLocationInstanceStep3 = { sharedGeoHash: sharedGeoHash };
+
         txn = await Mina.transaction(deployerAccount, () => {
           let witness = getWitness(
             solution3Map,
             wrongLocationInstanceStep3,
             TestTree3
           );
-          zkAppInstance.hunt(wrongLocationInstanceStep3, witness);
-          zkAppInstance.sign(zkAppPrivateKey);
+          zkApp.hunt(wrongLocationInstanceStep3, witness);
         });
-        await txn.send().wait();
+        await txn.prove();
+        await txn.send();
       } catch (error) {
         // expect that root doesn't match
         expect(error).toStrictEqual(
           Error(
-            'assert_equal: 23867771434367343257362585493375571467942581425112907504449115288292565011345 != 16454777920246234065520595127497798292309796033122497158590148125087442439225'
+            '("Error: assert_equal: 23867771434367343257362585493375571467942581425112907504449115288292565011345 != 16454777920246234065520595127497798292309796033122497158590148125087442439225")'
           )
         );
       }
 
-      isSolved = zkAppInstance.finished.get();
+      isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(false));
-      step = zkAppInstance.step.get();
+      step = zkApp.step.get();
       expect(step).toEqual(UInt32.from(2));
 
       // we can't call finish because we haven't completed all steps yet
       try {
         txn = await Mina.transaction(deployerAccount, () => {
-          zkAppInstance.finish();
-          zkAppInstance.sign(zkAppPrivateKey);
+          zkApp.finish();
         });
-        await txn.send().wait();
+        await txn.prove();
+        await txn.send();
       } catch (error) {
         // expect that root doesn't match
         expect(error).toStrictEqual(Error('assert_equal: 2 != 3'));
       }
-      isSolved = zkAppInstance.finished.get();
+      isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(false));
 
       // solve riddle 3 with correct location
-      const locationInstanceStep3 = new LocationCheck(
-        48.208693117,
-        16.3725605607
-      );
+      sharedGeoHash = convert_location_to_geohash(48.208693117, 16.3725605607);
+      const locationInstanceStep3 = { sharedGeoHash: sharedGeoHash };
+
       txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
           solution3Map,
           locationInstanceStep3,
           TestTree3
         );
-        zkAppInstance.hunt(locationInstanceStep3, witness);
-        zkAppInstance.sign(zkAppPrivateKey);
+        zkApp.hunt(locationInstanceStep3, witness);
       });
-      await txn.send().wait();
+      await txn.prove();
+      await txn.send();
 
-      isSolved = zkAppInstance.finished.get();
+      isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(false));
-      step = zkAppInstance.step.get();
+      step = zkApp.step.get();
       expect(step).toEqual(UInt32.from(3));
 
       // we can call finish after completing all riddles
       txn = await Mina.transaction(deployerAccount, () => {
-        zkAppInstance.finish();
-        zkAppInstance.sign(zkAppPrivateKey);
+        zkApp.finish();
       });
-      await txn.send().wait();
+      await txn.prove();
+      await txn.send();
 
-      isSolved = zkAppInstance.finished.get();
+      isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(true));
     });
 
     it('rejects setting the `SchnitzelApp` to finish() when not all steps were completed', async () => {
-      const zkAppInstance = new SchnitzelHuntApp(zkAppAddress);
-      await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
+      const zkApp = new SchnitzelHuntApp(zkAppAddress);
+      await localDeploy(zkAppPrivateKey, deployerAccount);
 
       try {
         let txn = await Mina.transaction(deployerAccount, () => {
-          zkAppInstance.finish();
-          zkAppInstance.sign(zkAppPrivateKey);
+          zkApp.finish();
         });
-        await txn.send().wait();
+        await txn.prove();
+        await txn.send();
       } catch (error) {
         expect(error).toStrictEqual(Error('assert_equal: 0 != 3'));
       }
 
-      const isSolved = zkAppInstance.finished.get();
+      const isSolved = zkApp.finished.get();
       expect(isSolved).toEqual(Bool(false));
     });
   });
@@ -455,4 +456,9 @@ function getWitness(
   console.log('shared geohash ' + location.sharedGeoHash.toString());
   let witness = new TestMerkleWitness(tree.getWitness(BigInt(idx)));
   return witness;
+}
+
+export function convert_location_to_geohash(lat: number, long: number): Field {
+  var geoHash: number = geohash.encode_int(lat, long);
+  return Field(geoHash);
 }

@@ -7,21 +7,20 @@ import {
   DeployArgs,
   Permissions,
   isReady,
-  CircuitValue,
-  prop,
   Bool,
   PrivateKey,
   Mina,
   PublicKey,
   AccountUpdate,
-  Experimental,
   Poseidon,
   Circuit,
   UInt32,
+  Struct,
+  MerkleTree,
+  MerkleWitness,
 } from 'snarkyjs';
 import geohash from 'ngeohash';
 import { tic, toc } from './tictoc.js';
-import { MerkleTree } from 'snarkyjs/dist/node/lib/merkle_tree.js';
 
 /**
  * Basic Example
@@ -37,7 +36,7 @@ await isReady;
 
 export {
   deployApp,
-  MerkleWitness,
+  MyMerkleWitness,
   Solution1Tree,
   Solution2Tree,
   Solution3Tree,
@@ -45,25 +44,16 @@ export {
 export type { SchnitzelInterface };
 
 const height = 11;
-const Solution1Tree = new Experimental.MerkleTree(height);
-const Solution2Tree = new Experimental.MerkleTree(height);
-const Solution3Tree = new Experimental.MerkleTree(height);
-class MerkleWitness extends Experimental.MerkleWitness(height) {}
+const Solution1Tree = new MerkleTree(height);
+const Solution2Tree = new MerkleTree(height);
+const Solution3Tree = new MerkleTree(height);
+class MyMerkleWitness extends MerkleWitness(height) {}
 
-export class LocationCheck extends CircuitValue {
-  @prop sharedGeoHash: Field;
-
-  constructor(lat: number, long: number) {
-    super();
-    var geoHash: number = geohash.encode_int(lat, long);
-    this.sharedGeoHash = Field(geoHash);
-    console.log(
-      'geoHash hash: ' + Poseidon.hash(this.sharedGeoHash.toFields())
-    );
-  }
-
-  hash(): Field {
-    return Poseidon.hash(this.sharedGeoHash.toFields());
+export class LocationCheck extends Struct({
+  sharedGeoHash: Field,
+}) {
+  static hash(sharedGeoHash: Field): Field {
+    return Poseidon.hash(sharedGeoHash.toFields());
   }
 }
 
@@ -82,7 +72,7 @@ export class SchnitzelHuntApp extends SmartContract {
     });
   }
 
-  @method init(
+  @method initState(
     solution1Root: Field,
     solution2Root: Field,
     solution3Root: Field
@@ -94,7 +84,7 @@ export class SchnitzelHuntApp extends SmartContract {
     this.step.set(UInt32.zero);
   }
 
-  @method hunt(locationCheckInstance: LocationCheck, path: MerkleWitness) {
+  @method hunt(locationCheckInstance: LocationCheck, path: MyMerkleWitness) {
     // check preconditions
     const isFinished = this.finished.get();
     this.finished.assertEquals(isFinished);
@@ -145,10 +135,6 @@ export class SchnitzelHuntApp extends SmartContract {
   }
 }
 
-let Local = Mina.LocalBlockchain();
-Mina.setActiveInstance(Local);
-const feePayer = Local.testAccounts[0].privateKey;
-
 type SchnitzelInterface = {
   hunt(
     // eslint-disable-next-line
@@ -162,18 +148,19 @@ type SchnitzelInterface = {
     // eslint-disable-next-line
     step: number,
     // eslint-disable-next-line
-    doProof: boolean
+    proofsEnabled: boolean
   ): Promise<void>;
   getState(): { solved: boolean; step: string };
   // eslint-disable-next-line
-  finish(doProof: boolean): Promise<void>;
+  finish(proofsEnabled: boolean): Promise<void>;
 };
 
 async function deployApp(
+  feePayer: PrivateKey,
   solution1Root: Field,
   solution2Root: Field,
   solution3Root: Field,
-  doProof: boolean
+  proofsEnabled: boolean
 ) {
   console.log('Deploying Checkin App ....');
   console.log('Merkle root 1 ' + solution1Root);
@@ -185,7 +172,7 @@ async function deployApp(
 
   let verificationKey: any;
 
-  if (doProof) {
+  if (proofsEnabled) {
     tic('compile');
     ({ verificationKey } = await SchnitzelHuntApp.compile());
     toc();
@@ -198,9 +185,10 @@ async function deployApp(
       solution2Map: Map<string, number>,
       solution3Map: Map<string, number>,
       step: number,
-      doProof: boolean
+      proofsEnabled: boolean
     ) {
       return hunt(
+        feePayer,
         zkappKey,
         zkappAddress,
         sharedLocation,
@@ -208,11 +196,11 @@ async function deployApp(
         solution2Map,
         solution3Map,
         step,
-        doProof
+        proofsEnabled
       );
     },
-    finish(doProof: boolean) {
-      return finish(zkappKey, zkappAddress, doProof);
+    finish(proofsEnabled: boolean) {
+      return finish(feePayer, zkappKey, zkappAddress, proofsEnabled);
     },
     getState() {
       return getState(zkappAddress);
@@ -226,7 +214,7 @@ async function deployApp(
       console.log('Funding account');
       AccountUpdate.fundNewAccount(feePayer);
       console.log('Deploying smart contract...');
-      if (!doProof) {
+      if (!proofsEnabled) {
         tic('deploy');
         zkapp.deploy({ zkappKey });
         zkapp.setPermissions({
@@ -240,7 +228,7 @@ async function deployApp(
         toc();
       }
     });
-    await tx.send().wait();
+    await tx.send();
 
     console.log('Deployment successful!');
   } catch (error) {
@@ -250,17 +238,17 @@ async function deployApp(
   try {
     let txn = await Mina.transaction(feePayer, () => {
       console.log('Initialising smart contract...');
-      zkapp.init(solution1Root, solution2Root, solution3Root);
-      if (!doProof) zkapp.sign(zkappKey);
+      zkapp.initState(solution1Root, solution2Root, solution3Root);
+      if (!proofsEnabled) zkapp.sign(zkappKey);
     });
-    if (doProof) {
+    if (proofsEnabled) {
       tic('prove');
       await txn.prove().then((tx) => {
         tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
       });
       toc();
     }
-    await txn.send().wait();
+    await txn.send();
 
     console.log('Contract successfully deployed and initialized!');
   } catch (error) {
@@ -271,6 +259,7 @@ async function deployApp(
 }
 
 async function hunt(
+  feePayer: PrivateKey,
   zkappKey: PrivateKey,
   zkappAddress: PublicKey,
   sharedLocation: LocationCheck,
@@ -278,7 +267,7 @@ async function hunt(
   solution2Map: Map<string, number>,
   solution3Map: Map<string, number>,
   step: number, // should be UInt32?
-  doProof: boolean
+  proofsEnabled: boolean
 ) {
   console.log('Initiating schnitzelhunt process...');
   console.log('step ' + step);
@@ -295,7 +284,7 @@ async function hunt(
           if (idx == undefined) {
             throw console.log('Location shared is incorrect!');
           }
-          witness = new MerkleWitness(Solution1Tree.getWitness(BigInt(+idx)));
+          witness = new MyMerkleWitness(Solution1Tree.getWitness(BigInt(+idx)));
           break;
         case 1:
           console.log('attempt to solve step 1');
@@ -303,7 +292,7 @@ async function hunt(
           if (idx == undefined) {
             throw console.log('Location shared is incorrect!');
           }
-          witness = new MerkleWitness(Solution2Tree.getWitness(BigInt(+idx)));
+          witness = new MyMerkleWitness(Solution2Tree.getWitness(BigInt(+idx)));
           break;
         case 2:
           console.log('attempt to solve step 2');
@@ -311,7 +300,7 @@ async function hunt(
           if (idx == undefined) {
             throw console.log('Location shared is incorrect!');
           }
-          witness = new MerkleWitness(Solution3Tree.getWitness(BigInt(+idx)));
+          witness = new MyMerkleWitness(Solution3Tree.getWitness(BigInt(+idx)));
           break;
         default:
           throw console.log('Invalid step: ' + step);
@@ -322,18 +311,18 @@ async function hunt(
         );
       }
       zkapp.hunt(sharedLocation, witness);
-      if (!doProof) {
+      if (!proofsEnabled) {
         zkapp.sign(zkappKey);
       }
     });
-    if (doProof) {
+    if (proofsEnabled) {
       tic('prove');
       await txn.prove().then((tx) => {
         tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
       });
       toc();
     }
-    await txn.send().wait();
+    await txn.send();
   } catch (err) {
     console.log('Solution rejected!');
     console.error('Solution rejected: ' + err);
@@ -341,27 +330,28 @@ async function hunt(
 }
 
 async function finish(
+  feePayer: PrivateKey,
   zkappKey: PrivateKey,
   zkappAddress: PublicKey,
-  doProof: boolean
+  proofsEnabled: boolean
 ) {
   console.log('Initiating finish process...');
   let zkapp = new SchnitzelHuntApp(zkappAddress);
   try {
     let txn = await Mina.transaction(feePayer, () => {
       zkapp.finish();
-      if (!doProof) {
+      if (!proofsEnabled) {
         zkapp.sign(zkappKey);
       }
     });
-    if (doProof) {
+    if (proofsEnabled) {
       tic('prove');
       await txn.prove().then((tx) => {
         tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
       });
       toc();
     }
-    await txn.send().wait();
+    await txn.send();
   } catch (err) {
     console.log('Fininsh process rejected!');
     console.error(err);
@@ -396,4 +386,9 @@ export function generate_solution_tree(
   }
   console.log('finished merkle tree generation');
   return solutionMap;
+}
+
+export function convert_location_to_geohash(lat: number, long: number): Field {
+  var geoHash: number = geohash.encode_int(lat, long);
+  return Field(geoHash);
 }

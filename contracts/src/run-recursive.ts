@@ -1,5 +1,4 @@
 import {
-  LocationCheck,
   Solution1Tree,
   Solution2Tree,
   Solution3Tree,
@@ -19,6 +18,7 @@ import {
   RecSchnitzelApp,
   RecSchnitzelHelper,
   RecSchnitzelRollup,
+  convert_location_to_geohash,
 } from './RecSchnitzel.js';
 /*
     when turned off it only adds one geohash solution to the solutionTree (used for quick testing/showcasing) 
@@ -122,10 +122,10 @@ console.log(
   `\n ==================================================== \n Solving 1st out of 2 riddles, should update state accordingly...`
 );
 
-// TODO: add error case
-
 tic('prove (riddle 1)');
-let location1 = new LocationCheck(48.2107958217, 16.37361559266);
+let location1 = {
+  sharedGeoHash: convert_location_to_geohash(48.2107958217, 16.37361559266),
+};
 let location1Witness = RecSchnitzelHelper.generateMerkleProof(
   location1,
   Solution1Map,
@@ -161,7 +161,9 @@ console.log(
 );
 
 tic('prove (riddle 2)');
-let location2 = new LocationCheck(48.2079410492, 16.3716678382);
+let location2 = {
+  sharedGeoHash: convert_location_to_geohash(48.2079410492, 16.3716678382),
+};
 let location2Witness = RecSchnitzelHelper.generateMerkleProof(
   location2,
   Solution1Map,
@@ -196,7 +198,9 @@ console.log(
 );
 
 tic('prove (riddle 3)');
-let location3 = new LocationCheck(48.2086269882, 16.3725081062);
+let location3 = {
+  sharedGeoHash: convert_location_to_geohash(48.2086269882, 16.3725081062),
+};
 let location3Witness = RecSchnitzelHelper.generateMerkleProof(
   location3,
   Solution1Map,
@@ -216,13 +220,11 @@ toc();
 console.log('Solved riddle 3 - final proof!');
 console.log('json proof: ' + location3Proof.toJSON().proof);
 
-// TODO: compile & deploy rollup
-
 let zkAppPrivateKey = PrivateKey.random();
 let zkAppAddress = zkAppPrivateKey.toPublicKey();
 let zkapp = new RecSchnitzelRollup(zkAppAddress);
 
-let Local = Mina.LocalBlockchain();
+let Local = Mina.LocalBlockchain({ proofsEnabled: true });
 Mina.setActiveInstance(Local);
 const publisherAccount = Local.testAccounts[0].privateKey;
 
@@ -233,7 +235,7 @@ let tx = await Mina.transaction(publisherAccount, () => {
   AccountUpdate.fundNewAccount(publisherAccount);
   zkapp.deploy({ zkappKey: zkAppPrivateKey });
 });
-await tx.send().wait();
+await tx.send();
 toc();
 
 // prove that we have a proof that shows that we won
@@ -243,7 +245,7 @@ tx = await Mina.transaction(publisherAccount, () => {
   zkapp.finish(location3Proof);
 });
 await tx.prove();
-await tx.send().wait();
+await tx.send();
 toc();
 
 let solved = zkapp.finished.get().toBoolean();

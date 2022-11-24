@@ -14,9 +14,11 @@ import {
   UInt32,
   Proof,
   SelfProof,
+  Struct,
+  MerkleTree,
+  MerkleWitness,
 } from 'snarkyjs';
 import geohash from 'ngeohash';
-import { MerkleTree } from 'snarkyjs/dist/node/lib/merkle_tree.js';
 /**
  * Basic Example
  * See https://docs.minaprotocol.com/zkapps for more info.
@@ -29,7 +31,7 @@ import { MerkleTree } from 'snarkyjs/dist/node/lib/merkle_tree.js';
 
 await isReady;
 
-export { MerkleWitness, Solution1Tree, Solution2Tree, Solution3Tree };
+export { MyMerkleWitness, Solution1Tree, Solution2Tree, Solution3Tree };
 export {
   RecSchnitzelApp,
   RecSchnitzelHuntState,
@@ -38,25 +40,16 @@ export {
 };
 
 const height = 11;
-const Solution1Tree = new Experimental.MerkleTree(height);
-const Solution2Tree = new Experimental.MerkleTree(height);
-const Solution3Tree = new Experimental.MerkleTree(height);
-class MerkleWitness extends Experimental.MerkleWitness(height) {}
+const Solution1Tree = new MerkleTree(height);
+const Solution2Tree = new MerkleTree(height);
+const Solution3Tree = new MerkleTree(height);
+class MyMerkleWitness extends MerkleWitness(height) {}
 
-export class LocationCheck extends CircuitValue {
-  @prop sharedGeoHash: Field;
-
-  constructor(lat: number, long: number) {
-    super();
-    var geoHash: number = geohash.encode_int(lat, long);
-    this.sharedGeoHash = Field(geoHash);
-    console.log(
-      'geoHash hash: ' + Poseidon.hash(this.sharedGeoHash.toFields())
-    );
-  }
-
-  hash(): Field {
-    return Poseidon.hash(this.sharedGeoHash.toFields());
+export class LocationCheck extends Struct({
+  sharedGeoHash: Field,
+}) {
+  static hash(sharedGeoHash: Field): Field {
+    return Poseidon.hash(sharedGeoHash.toFields());
   }
 }
 
@@ -116,12 +109,12 @@ let RecSchnitzelApp = Experimental.ZkProgram({
       },
     },
     hunt: {
-      privateInputs: [LocationCheck, MerkleWitness, SelfProof],
+      privateInputs: [LocationCheck, MyMerkleWitness, SelfProof],
 
       method(
         publicInput: RecSchnitzelHuntState,
         sharedLocation: LocationCheck,
-        path: MerkleWitness,
+        path: MyMerkleWitness,
         previousProof: SelfProof<RecSchnitzelHuntState>
       ) {
         previousProof.verify();
@@ -195,7 +188,7 @@ let RecSchnitzelHelper = {
     solution2Map: Map<string, number>,
     solution3Map: Map<string, number>,
     previousProof: SelfProof<RecSchnitzelHuntState>
-  ): MerkleWitness {
+  ): MyMerkleWitness {
     // TOFIX: got a weird error when i couldn't match UInt32 in my switch case
     // cos this function would then returned an undefined witness
     // returns an OCaml error
@@ -210,7 +203,7 @@ let RecSchnitzelHelper = {
         if (idx == undefined) {
           throw console.log('Location shared is incorrect!');
         }
-        witness = new MerkleWitness(Solution1Tree.getWitness(BigInt(+idx)));
+        witness = new MyMerkleWitness(Solution1Tree.getWitness(BigInt(+idx)));
         break;
       case '1':
         console.log('attempt to solve step 1');
@@ -218,7 +211,7 @@ let RecSchnitzelHelper = {
         if (idx == undefined) {
           throw console.log('Location shared is incorrect!');
         }
-        witness = new MerkleWitness(Solution2Tree.getWitness(BigInt(+idx)));
+        witness = new MyMerkleWitness(Solution2Tree.getWitness(BigInt(+idx)));
         break;
       case '2':
         console.log('attempt to solve step 2');
@@ -226,7 +219,7 @@ let RecSchnitzelHelper = {
         if (idx == undefined) {
           throw console.log('Location shared is incorrect!');
         }
-        witness = new MerkleWitness(Solution3Tree.getWitness(BigInt(+idx)));
+        witness = new MyMerkleWitness(Solution3Tree.getWitness(BigInt(+idx)));
         break;
       default:
         throw console.log('Invalid step: ' + step);
@@ -268,4 +261,9 @@ export function generate_solution_tree(
     tree.setLeaf(map_index, hash);
   }
   return solutionMap;
+}
+
+export function convert_location_to_geohash(lat: number, long: number): Field {
+  var geoHash: number = geohash.encode_int(lat, long);
+  return Field(geoHash);
 }

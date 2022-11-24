@@ -151,13 +151,13 @@ function MyApp() {
     let location;
     switch (step) {
       case '0':
-        location = new SchnitzelHunt.LocationCheck(48.2107958217, 16.3736155926);
+        location = { sharedGeoHash: SchnitzelHunt.convert_location_to_geohash(48.2107958217, 16.3736155926) };
         break;
       case '1':
-        location = new SchnitzelHunt.LocationCheck(48.2079410492, 16.3716678382);
+        location = { sharedGeoHash: SchnitzelHunt.convert_location_to_geohash(48.2086269882, 16.3725081062) };
         break;
       case '2':
-        location = new SchnitzelHunt.LocationCheck(48.2086269882, 16.3725081062);
+        location = { sharedGeoHash: SchnitzelHunt.convert_location_to_geohash(48.2079410492, 16.3716678382) };
         break;
       default:
         break;

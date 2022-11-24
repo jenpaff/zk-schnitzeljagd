@@ -10,6 +10,14 @@ npm run build
 
 # How to run test script
 
+recursive solution:
+
+```sh
+npx tsc && node build/src/run.js
+```
+
+iterative solution:
+
 ```sh
 npx tsc && node build/src/run.js
 ```

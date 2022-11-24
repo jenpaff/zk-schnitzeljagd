@@ -1,13 +1,13 @@
 import {
-  LocationCheck,
   deployApp,
   Solution1Tree,
   Solution2Tree,
   Solution3Tree,
   generate_solution_tree,
+  convert_location_to_geohash,
   SchnitzelInterface,
 } from './Schnitzel.js';
-import { Field, Poseidon, shutdown } from 'snarkyjs';
+import { Field, Mina, Poseidon, shutdown } from 'snarkyjs';
 import geohash from 'ngeohash';
 import { tic, toc } from './tictoc.js';
 
@@ -20,7 +20,11 @@ const doQuick = false;
    when turned off it will skip generating a proof for correct solutions, 
   may be used for quick testing of the logic
 */
-const doProof = false;
+const proofsEnabled = true;
+
+let Local = Mina.LocalBlockchain({ proofsEnabled });
+Mina.setActiveInstance(Local);
+const feePayer = Local.testAccounts[0].privateKey;
 
 let Solution1Map = new Map<string, number>(); // mapping geohash to index
 let Solution2Map = new Map<string, number>(); // mapping geohash to index
@@ -93,10 +97,11 @@ if (doQuick) {
 
 // deploy checkIn zkapp
 let zkapp: SchnitzelInterface = await deployApp(
+  feePayer,
   Solution1Tree.getRoot(),
   Solution2Tree.getRoot(),
   Solution3Tree.getRoot(),
-  doProof
+  proofsEnabled
 );
 
 console.log('solution1Map size ' + Solution1Map.size);
@@ -115,12 +120,12 @@ console.log(
 );
 
 await zkapp.hunt(
-  new LocationCheck(48, 16),
+  { sharedGeoHash: convert_location_to_geohash(48, 16) },
   Solution1Map,
   Solution2Map,
   Solution3Map,
   +step,
-  doProof
+  proofsEnabled
 );
 
 solved = zkapp.getState().solved;
@@ -149,12 +154,12 @@ console.log(
 );
 
 await zkapp.hunt(
-  new LocationCheck(48.2107958217, 16.3736155926),
+  { sharedGeoHash: convert_location_to_geohash(48.2107958217, 16.3736155926) },
   Solution1Map,
   Solution2Map,
   Solution3Map,
   +step,
-  doProof
+  proofsEnabled
 );
 
 solved = zkapp.getState().solved;
@@ -178,12 +183,12 @@ console.log(
 );
 
 await zkapp.hunt(
-  new LocationCheck(48.2079410492, 16.3716678382),
+  { sharedGeoHash: convert_location_to_geohash(48.2079410492, 16.3716678382) },
   Solution1Map,
   Solution2Map,
   Solution3Map,
   +step,
-  doProof
+  proofsEnabled
 );
 
 solved = zkapp.getState().solved;
@@ -207,12 +212,12 @@ console.log(
 );
 
 await zkapp.hunt(
-  new LocationCheck(48.2086269882, 16.3725081062),
+  { sharedGeoHash: convert_location_to_geohash(48.2086269882, 16.3725081062) },
   Solution1Map,
   Solution2Map,
   Solution3Map,
   +step,
-  doProof
+  proofsEnabled
 );
 
 solved = zkapp.getState().solved;
@@ -227,7 +232,7 @@ if (step != '3') {
   throw Error('Did not increase step after successfully solving 2nd riddle');
 }
 
-await zkapp.finish(doProof);
+await zkapp.finish(proofsEnabled);
 
 solved = zkapp.getState().solved;
 

@@ -22,14 +22,15 @@ The zk stands for *zero knowledge* and it's what enables you to (cryptographical
 - And further documentation on the technical implementation as well as mockups can be found [here](./docs/)
 
 ## Ideas to extend this project beyond the current scope
+- [x] Build recursive smart contract
 - [x] add e2e test to ensure stability of the UI <> contract
-- [x] configure pipeline on github
-- [x] Build smart contract using recursion API
-- [ ] Update snarkyJS version
+- [X] configure pipeline on github
+- [ ] Update snarkyJS
+- [ ] Use recursive smart contract in UI
 - [ ] Test selected bounding boxes
 - [ ] User setup/login
-- [ ] Deploy on Berkley
-- [ ] Conduct manual test with deployed app (phone/tablet)
+- [ ] Deploy on Berkley testnet
+- [ ] Conduct manual test with deployed app (phone/tablet/laptop?)
 - [ ] Leaderboard: present proofs of winners 
 - [ ] Include a timer 
 
