@@ -10,7 +10,7 @@ const baseURL = `http://localhost:3000`
 // Reference: https://playwright.dev/docs/test-configuration
 const config: PlaywrightTestConfig = {
   // Timeout per test
-  timeout: 50 * 1000,
+  timeout: process.env.CI ? 90 * 1000 : 50 * 1000,
   expect: {
     /**
      * Maximum time expect() should wait for the condition to be met.
