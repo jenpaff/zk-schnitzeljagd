@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-test.skip('should navigate to the game screen', async ({ page }) => {
+test('should navigate to the game screen', async ({ page }) => {
   // Go to start page
   await page.goto('http://localhost:3000')
 
