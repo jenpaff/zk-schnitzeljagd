@@ -20,7 +20,7 @@ const doQuick = false;
    when turned off it will skip generating a proof for correct solutions, 
   may be used for quick testing of the logic
 */
-const proofsEnabled = true;
+const proofsEnabled = false;
 
 let Local = Mina.LocalBlockchain({ proofsEnabled });
 Mina.setActiveInstance(Local);
@@ -124,8 +124,7 @@ await zkapp.hunt(
   Solution1Map,
   Solution2Map,
   Solution3Map,
-  +step,
-  proofsEnabled
+  +step
 );
 
 solved = zkapp.getState().solved;
@@ -158,8 +157,7 @@ await zkapp.hunt(
   Solution1Map,
   Solution2Map,
   Solution3Map,
-  +step,
-  proofsEnabled
+  +step
 );
 
 solved = zkapp.getState().solved;
@@ -187,8 +185,7 @@ await zkapp.hunt(
   Solution1Map,
   Solution2Map,
   Solution3Map,
-  +step,
-  proofsEnabled
+  +step
 );
 
 solved = zkapp.getState().solved;
@@ -216,8 +213,7 @@ await zkapp.hunt(
   Solution1Map,
   Solution2Map,
   Solution3Map,
-  +step,
-  proofsEnabled
+  +step
 );
 
 solved = zkapp.getState().solved;
@@ -232,7 +228,7 @@ if (step != '3') {
   throw Error('Did not increase step after successfully solving 2nd riddle');
 }
 
-await zkapp.finish(proofsEnabled);
+await zkapp.finish();
 
 solved = zkapp.getState().solved;
 

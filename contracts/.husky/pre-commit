@@ -5,4 +5,5 @@ cd contracts
 npm run format
 npx lint-staged
 npm run build && node build/src/run.js
+npm run build && node build/src/run-recursive.js
 npm run test

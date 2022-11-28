@@ -146,13 +146,11 @@ type SchnitzelInterface = {
     // eslint-disable-next-line
     solution3Map: Map<string, number>,
     // eslint-disable-next-line
-    step: number,
-    // eslint-disable-next-line
-    proofsEnabled: boolean
+    step: number
   ): Promise<void>;
   getState(): { solved: boolean; step: string };
   // eslint-disable-next-line
-  finish(proofsEnabled: boolean): Promise<void>;
+  finish(): Promise<void>;
 };
 
 async function deployApp(
@@ -184,23 +182,20 @@ async function deployApp(
       solution1Map: Map<string, number>,
       solution2Map: Map<string, number>,
       solution3Map: Map<string, number>,
-      step: number,
-      proofsEnabled: boolean
+      step: number
     ) {
       return hunt(
         feePayer,
-        zkappKey,
         zkappAddress,
         sharedLocation,
         solution1Map,
         solution2Map,
         solution3Map,
-        step,
-        proofsEnabled
+        step
       );
     },
-    finish(proofsEnabled: boolean) {
-      return finish(feePayer, zkappKey, zkappAddress, proofsEnabled);
+    finish() {
+      return finish(feePayer, zkappAddress);
     },
     getState() {
       return getState(zkappAddress);
@@ -214,19 +209,9 @@ async function deployApp(
       console.log('Funding account');
       AccountUpdate.fundNewAccount(feePayer);
       console.log('Deploying smart contract...');
-      if (!proofsEnabled) {
-        tic('deploy');
-        zkapp.deploy({ zkappKey });
-        zkapp.setPermissions({
-          ...Permissions.default(),
-          editState: Permissions.proofOrSignature(),
-        });
-        toc();
-      } else {
-        tic('deploy');
-        zkapp.deploy({ verificationKey, zkappKey });
-        toc();
-      }
+      tic('deploy');
+      zkapp.deploy({ verificationKey, zkappKey });
+      toc();
     });
     await tx.send();
 
@@ -239,15 +224,12 @@ async function deployApp(
     let txn = await Mina.transaction(feePayer, () => {
       console.log('Initialising smart contract...');
       zkapp.initState(solution1Root, solution2Root, solution3Root);
-      if (!proofsEnabled) zkapp.sign(zkappKey);
     });
-    if (proofsEnabled) {
-      tic('prove');
-      await txn.prove().then((tx) => {
-        tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
-      });
-      toc();
-    }
+    tic('prove');
+    await txn.prove().then((tx) => {
+      tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
+    });
+    toc();
     await txn.send();
 
     console.log('Contract successfully deployed and initialized!');
@@ -260,14 +242,12 @@ async function deployApp(
 
 async function hunt(
   feePayer: PrivateKey,
-  zkappKey: PrivateKey,
   zkappAddress: PublicKey,
   sharedLocation: LocationCheck,
   solution1Map: Map<string, number>,
   solution2Map: Map<string, number>,
   solution3Map: Map<string, number>,
-  step: number, // should be UInt32?
-  proofsEnabled: boolean
+  step: number // should be UInt32?
 ) {
   console.log('Initiating schnitzelhunt process...');
   console.log('step ' + step);
@@ -311,17 +291,12 @@ async function hunt(
         );
       }
       zkapp.hunt(sharedLocation, witness);
-      if (!proofsEnabled) {
-        zkapp.sign(zkappKey);
-      }
     });
-    if (proofsEnabled) {
-      tic('prove');
-      await txn.prove().then((tx) => {
-        tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
-      });
-      toc();
-    }
+    tic('prove');
+    await txn.prove().then((tx) => {
+      tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
+    });
+    toc();
     await txn.send();
   } catch (err) {
     console.log('Solution rejected!');
@@ -329,28 +304,18 @@ async function hunt(
   }
 }
 
-async function finish(
-  feePayer: PrivateKey,
-  zkappKey: PrivateKey,
-  zkappAddress: PublicKey,
-  proofsEnabled: boolean
-) {
+async function finish(feePayer: PrivateKey, zkappAddress: PublicKey) {
   console.log('Initiating finish process...');
   let zkapp = new SchnitzelHuntApp(zkappAddress);
   try {
     let txn = await Mina.transaction(feePayer, () => {
       zkapp.finish();
-      if (!proofsEnabled) {
-        zkapp.sign(zkappKey);
-      }
     });
-    if (proofsEnabled) {
-      tic('prove');
-      await txn.prove().then((tx) => {
-        tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
-      });
-      toc();
-    }
+    tic('prove');
+    await txn.prove().then((tx) => {
+      tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
+    });
+    toc();
     await txn.send();
   } catch (err) {
     console.log('Fininsh process rejected!');

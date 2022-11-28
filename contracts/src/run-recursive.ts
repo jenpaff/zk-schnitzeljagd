@@ -3,28 +3,39 @@ import {
   Solution2Tree,
   Solution3Tree,
   generate_solution_tree,
-} from './Schnitzel.js';
+} from './RecSchnitzel.js';
 import {
   AccountUpdate,
+  Bool,
   Field,
   Mina,
   Poseidon,
   PrivateKey,
+  Proof,
   shutdown,
+  SmartContract,
+  state,
+  State,
+  method,
+  UInt32,
+  DeployArgs,
+  Permissions,
+  Circuit,
 } from 'snarkyjs';
 import geohash from 'ngeohash';
 import { tic, toc } from './tictoc.js';
 import {
-  RecSchnitzelApp,
   RecSchnitzelHelper,
-  RecSchnitzelRollup,
   convert_location_to_geohash,
+  RecSchnitzelHuntState,
+  RecSchnitzelHunt,
 } from './RecSchnitzel.js';
 /*
     when turned off it only adds one geohash solution to the solutionTree (used for quick testing/showcasing) 
     rather than loading the whole solution tree to allow for a wider range of allowed locations per solution
   */
 const doQuick = true;
+const proofsEnabled = true;
 
 let Solution1Map = new Map<string, number>(); // mapping geohash to index
 let Solution2Map = new Map<string, number>(); // mapping geohash to index
@@ -104,7 +115,7 @@ console.log('solution2Map size ' + Solution2Map.size);
 console.log('Solution3Map size ' + Solution3Map.size);
 
 tic('compiling');
-await RecSchnitzelApp.compile();
+await RecSchnitzelHunt.compile();
 toc();
 
 tic('prove (init)');
@@ -113,7 +124,7 @@ let initialState = RecSchnitzelHelper.init(
   Solution2Tree.getRoot(),
   Solution3Tree.getRoot()
 );
-let initialProof = await RecSchnitzelApp.init(initialState);
+let initialProof = await RecSchnitzelHunt.init(initialState);
 toc();
 
 console.log('Proof state initialized!');
@@ -134,7 +145,7 @@ let location1Witness = RecSchnitzelHelper.generateMerkleProof(
   initialProof
 );
 let location1State = RecSchnitzelHelper.hunt(initialProof);
-let location1Proof = await RecSchnitzelApp.hunt(
+let location1Proof = await RecSchnitzelHunt.hunt(
   location1State,
   location1,
   location1Witness,
@@ -145,7 +156,7 @@ toc();
 console.log('Solved riddle 1');
 console.log('json proof: ' + location1Proof.toJSON().proof);
 
-let step = location1State.step.toString();
+let step = location1Proof.publicInput.step.toString();
 
 // assert state
 console.log('State step: ', step);
@@ -172,7 +183,7 @@ let location2Witness = RecSchnitzelHelper.generateMerkleProof(
   location1Proof
 );
 let location2State = RecSchnitzelHelper.hunt(location1Proof);
-let location2Proof = await RecSchnitzelApp.hunt(
+let location2Proof = await RecSchnitzelHunt.hunt(
   location2State,
   location2,
   location2Witness,
@@ -185,9 +196,8 @@ console.log('json proof: ' + location2Proof.toJSON().proof);
 
 // assert state is correctly updated after correct move
 
+step = location2Proof.publicInput.step.toString();
 console.log('State step: ', step);
-
-step = location2State.step.toString();
 
 if (step != '2') {
   throw Error('Did not increase step after successfully solving 2nd riddle');
@@ -209,7 +219,7 @@ let location3Witness = RecSchnitzelHelper.generateMerkleProof(
   location2Proof
 );
 let location3State = RecSchnitzelHelper.hunt(location2Proof);
-let location3Proof = await RecSchnitzelApp.hunt(
+let location3Proof = await RecSchnitzelHunt.hunt(
   location3State,
   location3,
   location3Witness,
@@ -220,33 +230,111 @@ toc();
 console.log('Solved riddle 3 - final proof!');
 console.log('json proof: ' + location3Proof.toJSON().proof);
 
-let zkAppPrivateKey = PrivateKey.random();
-let zkAppAddress = zkAppPrivateKey.toPublicKey();
+step = location3Proof.publicInput.step.toString();
+console.log('State step: ', step);
+
+if (step != '3') {
+  throw Error('Did not increase step after successfully solving 3nd riddle');
+}
+
+class RecSchnitzelProof extends Proof<RecSchnitzelHuntState> {
+  static publicInputType = RecSchnitzelHuntState;
+  static tag = () => RecSchnitzelHunt;
+}
+
+class RecSchnitzelRollup extends SmartContract {
+  @state(Bool) finished = State<Bool>();
+
+  deploy(args: DeployArgs) {
+    super.deploy(args);
+    this.setPermissions({
+      ...Permissions.default(),
+      editState: Permissions.proofOrSignature(),
+    });
+  }
+
+  @method finish(
+    proof: RecSchnitzelProof // <-- we're passing in a proof!
+  ) {
+    // verify the proof
+    proof.verify();
+
+    Circuit.log(proof.publicInput);
+
+    // assert that user completed all steps
+    proof.publicInput.step.assertEquals(UInt32.from(3));
+
+    // declare that someone won this game!
+    this.finished.set(Bool(true));
+  }
+}
+
+let zkappKey = PrivateKey.random();
+let zkAppAddress = zkappKey.toPublicKey();
 let zkapp = new RecSchnitzelRollup(zkAppAddress);
 
-let Local = Mina.LocalBlockchain({ proofsEnabled: true });
+let Local = Mina.LocalBlockchain({ proofsEnabled: proofsEnabled });
 Mina.setActiveInstance(Local);
-const publisherAccount = Local.testAccounts[0].privateKey;
+const feePayer = Local.testAccounts[0].privateKey;
 
 // deploy
-tic('compile & deploy rollup');
-await RecSchnitzelRollup.compile();
-let tx = await Mina.transaction(publisherAccount, () => {
-  AccountUpdate.fundNewAccount(publisherAccount);
-  zkapp.deploy({ zkappKey: zkAppPrivateKey });
-});
-await tx.send();
-toc();
+
+console.log('Deploying Checkin App ....');
+let verificationKey: any;
+
+if (proofsEnabled) {
+  tic('compile');
+  ({ verificationKey } = await RecSchnitzelRollup.compile());
+  toc();
+}
+
+try {
+  let tx = await Mina.transaction(feePayer, () => {
+    console.log('Funding account');
+    AccountUpdate.fundNewAccount(feePayer);
+    console.log('Deploying smart contract...');
+    tic('deploy');
+    zkapp.deploy({ verificationKey, zkappKey });
+    toc();
+  });
+  await tx.send();
+
+  console.log('Deployment successful!');
+} catch (error) {
+  console.error('Error deploying app ' + error);
+}
+
+try {
+  let txn = await Mina.transaction(feePayer, () => {
+    console.log('Initialising smart contract...');
+    zkapp.init();
+  });
+  tic('prove');
+  await txn.prove().then((tx) => {
+    tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
+  });
+  toc();
+  await txn.send();
+
+  console.log('Contract successfully deployed and initialized!');
+} catch (error) {
+  console.error('Error initialising app ' + error);
+}
 
 // prove that we have a proof that shows that we won
-tic('prove (rollup)');
-tx = await Mina.transaction(publisherAccount, () => {
-  // call out method with final proof from the ZkProgram as argument
-  zkapp.finish(location3Proof);
-});
-await tx.prove();
-await tx.send();
-toc();
+console.log('Initiating finish process...');
+try {
+  let tx = await Mina.transaction(feePayer, () => {
+    zkapp.finish(location3Proof);
+  });
+  await tx.prove().then((tx) => {
+    tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
+  });
+  await tx.send();
+  console.log('Finish process successful!');
+} catch (error) {
+  console.error('Fininsh process rejected: ' + error);
+}
 
 let solved = zkapp.finished.get().toBoolean();
 

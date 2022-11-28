@@ -1,18 +1,11 @@
 import {
   Field,
-  SmartContract,
-  state,
-  State,
-  method,
   isReady,
-  CircuitValue,
-  prop,
   Bool,
   Experimental,
   Poseidon,
   Circuit,
   UInt32,
-  Proof,
   SelfProof,
   Struct,
   MerkleTree,
@@ -32,12 +25,7 @@ import geohash from 'ngeohash';
 await isReady;
 
 export { MyMerkleWitness, Solution1Tree, Solution2Tree, Solution3Tree };
-export {
-  RecSchnitzelApp,
-  RecSchnitzelHuntState,
-  RecSchnitzelHelper,
-  RecSchnitzelRollup,
-};
+export { RecSchnitzelHunt, RecSchnitzelHuntState, RecSchnitzelHelper };
 
 const height = 11;
 const Solution1Tree = new MerkleTree(height);
@@ -53,46 +41,33 @@ export class LocationCheck extends Struct({
   }
 }
 
-class RecSchnitzelHuntState extends CircuitValue {
-  @prop step: UInt32;
-  @prop solution1Root: Field;
-  @prop solution2Root: Field;
-  @prop solution3Root: Field;
-
-  constructor(
-    step: UInt32,
-    solution1Root: Field,
-    solution2Root: Field,
-    solution3Root: Field
-  ) {
-    super();
-    this.step = step;
-    this.solution1Root = solution1Root;
-    this.solution2Root = solution2Root;
-    this.solution3Root = solution3Root;
-  }
-
-  // helper
+class RecSchnitzelHuntState extends Struct({
+  step: UInt32,
+  solution1Root: Field,
+  solution2Root: Field,
+  solution3Root: Field,
+}) {
   static from(state: {
     step: UInt32;
     solution1Root: Field;
     solution2Root: Field;
     solution3Root: Field;
-  }) {
-    return new this(
-      state.step,
-      state.solution1Root,
-      state.solution2Root,
-      state.solution3Root
-    );
+  }): RecSchnitzelHuntState {
+    return {
+      step: state.step,
+      solution1Root: state.solution1Root,
+      solution2Root: state.solution2Root,
+      solution3Root: state.solution3Root,
+    };
   }
 }
 
-let RecSchnitzelApp = Experimental.ZkProgram({
+let RecSchnitzelHunt = Experimental.ZkProgram({
   publicInput: RecSchnitzelHuntState,
 
   methods: {
     init: {
+      // base case
       privateInputs: [],
 
       method(publicInput: RecSchnitzelHuntState) {
@@ -109,6 +84,7 @@ let RecSchnitzelApp = Experimental.ZkProgram({
       },
     },
     hunt: {
+      // will be run recursively
       privateInputs: [LocationCheck, MyMerkleWitness, SelfProof],
 
       method(
@@ -117,6 +93,8 @@ let RecSchnitzelApp = Experimental.ZkProgram({
         path: MyMerkleWitness,
         previousProof: SelfProof<RecSchnitzelHuntState>
       ) {
+        Circuit.log('previousProof: ', previousProof.publicInput);
+
         previousProof.verify();
 
         let step = previousProof.publicInput.step;
@@ -145,32 +123,12 @@ let RecSchnitzelApp = Experimental.ZkProgram({
         path
           .calculateRoot(Poseidon.hash(sharedLocation.sharedGeoHash.toFields()))
           .assertEquals(root_to_check);
+
+        Circuit.log('step after circuit: ', step);
       },
     },
   },
 });
-
-class RecSchnitzelProof extends Proof<RecSchnitzelHuntState> {
-  static publicInputType = RecSchnitzelHuntState;
-  static tag = () => RecSchnitzelApp;
-}
-
-class RecSchnitzelRollup extends SmartContract {
-  @state(Bool) finished = State<Bool>();
-
-  @method finish(
-    proof: RecSchnitzelProof // <-- we're passing in a proof!
-  ) {
-    // verify the proof
-    proof.verify();
-
-    // assert that user completed all steps
-    proof.publicInput.step.assertEquals(UInt32.from(3));
-
-    // declare that someone won this game!
-    this.finished.set(Bool(true));
-  }
-}
 
 let RecSchnitzelHelper = {
   init(solution1Root: Field, solution2Root: Field, solution3Root: Field) {
