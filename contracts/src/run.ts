@@ -7,7 +7,7 @@ import {
   generate_solution_tree,
   SchnitzelInterface,
 } from './Schnitzel.js';
-import { Field, Poseidon, shutdown } from 'snarkyjs';
+import { Field, Mina, Poseidon, shutdown } from 'snarkyjs';
 import geohash from 'ngeohash';
 import { tic, toc } from './tictoc.js';
 
@@ -21,6 +21,10 @@ const doQuick = false;
   may be used for quick testing of the logic
 */
 const doProof = false;
+
+let Local = Mina.LocalBlockchain();
+Mina.setActiveInstance(Local);
+const feePayer = Local.testAccounts[0].privateKey;
 
 let Solution1Map = new Map<string, number>(); // mapping geohash to index
 let Solution2Map = new Map<string, number>(); // mapping geohash to index
@@ -93,6 +97,7 @@ if (doQuick) {
 
 // deploy checkIn zkapp
 let zkapp: SchnitzelInterface = await deployApp(
+  feePayer,
   Solution1Tree.getRoot(),
   Solution2Tree.getRoot(),
   Solution3Tree.getRoot(),
@@ -115,6 +120,7 @@ console.log(
 );
 
 await zkapp.hunt(
+  feePayer, 
   new LocationCheck(48, 16),
   Solution1Map,
   Solution2Map,
@@ -149,6 +155,7 @@ console.log(
 );
 
 await zkapp.hunt(
+  feePayer, 
   new LocationCheck(48.2107958217, 16.3736155926),
   Solution1Map,
   Solution2Map,
@@ -178,6 +185,7 @@ console.log(
 );
 
 await zkapp.hunt(
+  feePayer, 
   new LocationCheck(48.2079410492, 16.3716678382),
   Solution1Map,
   Solution2Map,
@@ -207,6 +215,7 @@ console.log(
 );
 
 await zkapp.hunt(
+  feePayer, 
   new LocationCheck(48.2086269882, 16.3725081062),
   Solution1Map,
   Solution2Map,
@@ -227,7 +236,7 @@ if (step != '3') {
   throw Error('Did not increase step after successfully solving 2nd riddle');
 }
 
-await zkapp.finish(doProof);
+await zkapp.finish(feePayer, doProof);
 
 solved = zkapp.getState().solved;
 

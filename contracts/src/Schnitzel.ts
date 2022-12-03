@@ -145,12 +145,9 @@ export class SchnitzelHuntApp extends SmartContract {
   }
 }
 
-let Local = Mina.LocalBlockchain();
-Mina.setActiveInstance(Local);
-const feePayer = Local.testAccounts[0].privateKey;
-
 type SchnitzelInterface = {
   hunt(
+    feePayer: PrivateKey, 
     // eslint-disable-next-line
     sharedLocation: LocationCheck,
     // eslint-disable-next-line
@@ -166,10 +163,11 @@ type SchnitzelInterface = {
   ): Promise<void>;
   getState(): { solved: boolean; step: string };
   // eslint-disable-next-line
-  finish(doProof: boolean): Promise<void>;
+  finish(feePayer: PrivateKey, doProof: boolean): Promise<void>;
 };
 
 async function deployApp(
+  feePayer: PrivateKey,
   solution1Root: Field,
   solution2Root: Field,
   solution3Root: Field,
@@ -193,6 +191,7 @@ async function deployApp(
 
   let zkappInterface = {
     hunt(
+      feePayer: PrivateKey,
       sharedLocation: LocationCheck,
       solution1Map: Map<string, number>,
       solution2Map: Map<string, number>,
@@ -201,6 +200,7 @@ async function deployApp(
       doProof: boolean
     ) {
       return hunt(
+        feePayer,
         zkappKey,
         zkappAddress,
         sharedLocation,
@@ -211,8 +211,8 @@ async function deployApp(
         doProof
       );
     },
-    finish(doProof: boolean) {
-      return finish(zkappKey, zkappAddress, doProof);
+    finish(feePayer: PrivateKey, doProof: boolean) {
+      return finish(feePayer, zkappKey, zkappAddress, doProof);
     },
     getState() {
       return getState(zkappAddress);
@@ -271,6 +271,7 @@ async function deployApp(
 }
 
 async function hunt(
+  feePayer: PrivateKey,
   zkappKey: PrivateKey,
   zkappAddress: PublicKey,
   sharedLocation: LocationCheck,
@@ -341,6 +342,7 @@ async function hunt(
 }
 
 async function finish(
+  feePayer: PrivateKey,
   zkappKey: PrivateKey,
   zkappAddress: PublicKey,
   doProof: boolean

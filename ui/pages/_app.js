@@ -2,6 +2,8 @@ import Head from 'next/head'
 import '../styles/globals.css'
 import '@fortawesome/fontawesome-svg-core/styles.css'
 
+import ZkappWorkerClient from './zkappWorkerClient';
+
 function MyApp({ Component, pageProps }) {
   return (
   <>
