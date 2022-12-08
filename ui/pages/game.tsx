@@ -10,11 +10,11 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faLocationDot } from '@fortawesome/free-solid-svg-icons';
 import { faArrowRight } from '@fortawesome/free-solid-svg-icons';
 import geohash from 'ngeohash';
-import { Poseidon, Field, Bool, PublicKey, PrivateKey, Mina } from 'snarkyjs';
+import { Poseidon, Field, Bool, PublicKey, PrivateKey, Mina, isReady } from 'snarkyjs';
 import useWindowSize from "./useWindowSize";
 import Confetti from 'react-confetti';
 import ZkappWorkerClient from './zkappWorkerClient';
-import { SchnitzelHuntApp, MerkleWitness, Solution1Tree, Solution2Tree, Solution3Tree } from '../../contracts/build/src/Schnitzel.js';
+import { SchnitzelHuntApp, MerkleWitness, Solution1Tree, Solution2Tree, Solution3Tree, LocationCheck } from '../../contracts/build/src/Schnitzel.js';
 
 let SchnitzelHunt; // this will hold the dynamically imported './Schnitzel.js'
 
@@ -29,15 +29,15 @@ let doQuick = false;
 */
 let doProof = false;
 
-function MyApp() {
+export default function App() {
 
   let [state, setState] = useState({
     zkappWorkerClient: null as null | ZkappWorkerClient,
     hasWallet: false,
     hasBeenSetup: false,
     accountExists: false,
-    currStep: null as null | String,
-    finished: null as null | Field,
+    currStep: '0',
+    finished: false,
     zkappPublicKey: null as null | PublicKey,
 
     // game stuff 
@@ -62,98 +62,83 @@ function MyApp() {
   useEffect(() => {
     (async () => {
 
-      state.isLoading = true;
+      if (!state.hasBeenSetup) {
 
-      const zkappWorkerClient = new ZkappWorkerClient();
+        state.isLoading = true;
 
-      console.log('Loading SnarkyJS...');
-      await zkappWorkerClient.loadSnarkyJS();
-      await zkappWorkerClient.setActiveInstanceToBerkeley();
-      console.log('done');
-    
-      console.log('Loading Contract...');
-      await zkappWorkerClient.loadContract();
-      console.log('done');
+        const zkappWorkerClient = new ZkappWorkerClient();
+        state.zkappWorkerClient = zkappWorkerClient;
+
+        console.log('Loading SnarkyJS...');
+        await zkappWorkerClient.loadSnarkyJS();
+        console.log('done');
+        console.log('Starting local chain...');
+        const publicKey = await zkappWorkerClient.setActiveInstanceToLocal();
+        state.zkappPublicKey = publicKey;
+        const accountExists = true;
+        console.log('done');
       
-      console.log('Compiling zkApp...');
-      await zkappWorkerClient.compileContract();
-      console.log('zkApp compiled');
+        console.log('Loading Contract...');
+        await zkappWorkerClient.loadContract();
+        console.log('done');
+        
+        console.log('Compiling zkApp...');
+        await zkappWorkerClient.compileContract();
+        console.log('zkApp compiled');
 
-      console.log('Deploying zkapp...');
-      let zkappKey = PrivateKey.random();
-      let zkappAddress = zkappKey.toPublicKey();
-      await zkappWorkerClient.deployContract(zkappKey, zkappAddress);
-      console.log('done');
+        // setup solution trees
+        let solution1Map = new Map();
+        let solution2Map = new Map();
+        let solution3Map = new Map();
 
-      // setup solution trees
-      let solution1Map = new Map();
-      let solution2Map = new Map();
-      let solution3Map = new Map();
-
-      if (doQuick) {
         // solution 1 
         const test_geohash1 = geohash.encode_int(48.2107958217, 16.3736155926);
         let hash = Poseidon.hash(Field(+test_geohash1).toFields());
         solution1Map.set(test_geohash1.toString(), 0);
-        SchnitzelHunt.Solution1Tree.setLeaf(BigInt(0), hash);
+        Solution1Tree.setLeaf(BigInt(0), hash);
 
         // solution 2 
         const test_geohash2 = geohash.encode_int(48.2079410492, 16.3716678382);
         hash = Poseidon.hash(Field(+test_geohash2).toFields());
         solution2Map.set(test_geohash2.toString(), 0);
-        SchnitzelHunt.Solution2Tree.setLeaf(BigInt(0), hash);
+        Solution2Tree.setLeaf(BigInt(0), hash);
 
         // solution 3 
         const test_geohash3 = geohash.encode_int(48.2086269882, 16.3725081062);
         hash = Poseidon.hash(Field(+test_geohash3).toFields());
         solution3Map.set(test_geohash3.toString(), 0);
-        SchnitzelHunt.Solution3Tree.setLeaf(BigInt(0), hash);
+        Solution3Tree.setLeaf(BigInt(0), hash);
+
+        console.log('Deploying zkapp...');
+        await zkappWorkerClient.deployApp(Solution1Tree.getRoot(), Solution1Tree.getRoot(), Solution3Tree.getRoot());
+        console.log('done');
+
+        let currentStep = (await state.zkappWorkerClient!.getStep()).toString();
+        let root1 = (await state.zkappWorkerClient!.getRoot1()).toString();
+        let finished = (await state.zkappWorkerClient!.getFinished()).toString();
+
+        console.log('root 1: ', root1);
+        console.log('currentStep: ', currentStep);
+        console.log('finished: ', finished);
+
+        setState({...state,
+          zkappWorkerClient,
+          hasBeenSetup: true,
+          currStep: currentStep.toString(),
+          finished: false,
+          lat: null,
+          lng: null,
+          solution1Map,
+          solution2Map,
+          solution3Map,
+          isLoading: false,
+          showSubmissionSuccess: false,
+          showSubmissionError: false,
+          showRiddle1: true,
+          showRiddle2: false,
+          showRiddle3: false,
+        });
       }
-
-      // setup merkle trees for solution
-      if (!doQuick && solution1Map.size == 0) {
-        console.log('Building solution merkle trees..');
-
-        solution1Map = SchnitzelHunt.generate_solution_tree(48.2107356534, 16.3736139593, 48.2108048225, 16.3737322524, SchnitzelHunt.Solution1Tree);
-        solution2Map = SchnitzelHunt.generate_solution_tree(
-          48.2079049216,
-          16.3716384673,
-          48.2079451583,
-          16.3717048444,
-          SchnitzelHunt.Solution2Tree
-        );
-        solution3Map = SchnitzelHunt.generate_solution_tree(
-          48.2086269882,
-          16.3725081062,
-          48.2086858438,
-          16.3725546748,
-          SchnitzelHunt.Solution3Tree
-        );
-      }
-
-      console.log('Initialising zkapp...');
-      await zkappWorkerClient.initContract(zkappKey, SchnitzelHunt.Solution1Tree.getRoot(), SchnitzelHunt.Solution2Tree.getRoot(), SchnitzelHunt.Solution3Tree.getRoot());
-      const currentStep = await zkappWorkerClient.getStep();
-      console.log('current step of the game:', currentStep.toString());
-
-
-      setState({...state,
-        zkappWorkerClient, 
-        hasBeenSetup: true,
-        currStep: currentStep.toString(),
-        finished: Field(false),
-        lat: null,
-        lng: null,
-        solution1Map,
-        solution2Map,
-        solution3Map,
-        isLoading: false,
-        showSubmissionSuccess: false,
-        showSubmissionError: false,
-        showRiddle1: true,
-        showRiddle2: false,
-        showRiddle3: false,
-      });
     })();
   }, []);
 
@@ -162,21 +147,23 @@ function MyApp() {
 
   const solvingRiddle = async () => {
     console.log('attempting to solve riddle...');
-    state.isLoading = true;
+    setState({ ...state, isLoading: true });
     // SchnitzelHunt = await import('../../contracts/build/src/Schnitzel.js'); 
     let currentStep = (await state.zkappWorkerClient!.getStep()).toString();
 
+    console.log('currentStep (before update) ', currentStep);
+
     // getting shared location
-    let sharedLocation;
+    let sharedLocation = new LocationCheck(48.2107958217, 16.3736155926);
     switch (currentStep) {
       case '0':
-        sharedLocation = { sharedGeoHash: SchnitzelHunt.convert_location_to_geohash(48.2107958217, 16.3736155926) };
+        sharedLocation = new LocationCheck(48.2107958217, 16.3736155926);
         break;
       case '1':
-        sharedLocation = { sharedGeoHash: SchnitzelHunt.convert_location_to_geohash(48.2086269882, 16.3725081062) };
+        sharedLocation = new LocationCheck(48.2079410492, 16.3716678382);
         break;
       case '2':
-        sharedLocation = { sharedGeoHash: SchnitzelHunt.convert_location_to_geohash(48.2079410492, 16.3716678382) };
+        sharedLocation = new LocationCheck(48.2079410492, 16.3716678382);
         break;
       default:
         break;
@@ -227,6 +214,8 @@ function MyApp() {
 
     currentStep = stepAfterSubmit;
 
+    console.log('currentStep: ', currentStep);
+
     setState({ ...state, currStep: currentStep, lat: null, lng: null, isLoading: false });
   }
 
@@ -256,6 +245,7 @@ function MyApp() {
     navigator.geolocation.getCurrentPosition((position) => {
       state.lat = position.coords.latitude;
       state.lng = position.coords.longitude;
+      setState({ ...state, lat: position.coords.latitude, lng: position.coords.longitude });
     });
   };
 
@@ -309,7 +299,7 @@ function MyApp() {
                 <p data-testid="finished-message" className={styles.riddle}>Congrats! You successfully hunted the Schnitzel! </p>
               </Box>
             }
-            { !state.showSubmissionSuccess && !state.finished &&<Box className={styles.locationBox}>
+            { !state.isLoading && !state.showSubmissionSuccess && !state.finished &&<Box className={styles.locationBox}>
               <p className={styles.location}>
                 Solve by sharing your location 👉 <FontAwesomeIcon icon={faLocationDot} onClick={shareLocation} style={{color: '#ffafbd'}} size="2x" />
               </p>
@@ -326,9 +316,7 @@ function MyApp() {
                 <Button
                   data-testid="submit-location" 
                   variant="contained"
-                  onClick={()=>{
-                    solvingRiddle;
-                  }}
+                  onClick={solvingRiddle}
                   style={{ backgroundColor: '#ffafbd' }}
                 >
                   Submit solution
@@ -371,5 +359,3 @@ function MyApp() {
     </div>
   )
 }
-
-export default MyApp;

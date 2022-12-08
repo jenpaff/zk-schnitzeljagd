@@ -147,7 +147,7 @@ export class SchnitzelHuntApp extends SmartContract {
 
 type SchnitzelInterface = {
   hunt(
-    feePayer: PrivateKey, 
+    feePayer: PrivateKey,
     // eslint-disable-next-line
     sharedLocation: LocationCheck,
     // eslint-disable-next-line

@@ -5,7 +5,7 @@ import {
   Solution2Tree,
   Solution3Tree,
   LocationCheck,
-  MerkleWitness
+  MerkleWitness,
 } from './Schnitzel.js';
 export {
   SchnitzelHuntApp,
@@ -14,5 +14,5 @@ export {
   Solution2Tree,
   Solution3Tree,
   LocationCheck,
-  MerkleWitness
+  MerkleWitness,
 };

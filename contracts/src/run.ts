@@ -120,7 +120,7 @@ console.log(
 );
 
 await zkapp.hunt(
-  feePayer, 
+  feePayer,
   new LocationCheck(48, 16),
   Solution1Map,
   Solution2Map,
@@ -155,7 +155,7 @@ console.log(
 );
 
 await zkapp.hunt(
-  feePayer, 
+  feePayer,
   new LocationCheck(48.2107958217, 16.3736155926),
   Solution1Map,
   Solution2Map,
@@ -185,7 +185,7 @@ console.log(
 );
 
 await zkapp.hunt(
-  feePayer, 
+  feePayer,
   new LocationCheck(48.2079410492, 16.3716678382),
   Solution1Map,
   Solution2Map,
@@ -215,7 +215,7 @@ console.log(
 );
 
 await zkapp.hunt(
-  feePayer, 
+  feePayer,
   new LocationCheck(48.2086269882, 16.3725081062),
   Solution1Map,
   Solution2Map,

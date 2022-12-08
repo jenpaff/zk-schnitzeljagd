@@ -1,217 +1,205 @@
 import {
-    Mina,
-    isReady,
-    PublicKey,
-    fetchAccount,
-    PrivateKey,
-    AccountUpdate,
-    Permissions,
-    Field,
-    Poseidon,
-  } from 'snarkyjs';
+  Mina,
+  isReady,
+  PublicKey,
+  fetchAccount,
+  PrivateKey,
+  AccountUpdate,
+  Permissions,
+  Field,
+  Poseidon,
+  VerificationKey,
+} from 'snarkyjs';
 
-  import geohash from 'ngeohash';
-  
-  type Transaction = Awaited<ReturnType<typeof Mina.transaction>>;
-  
-  // ---------------------------------------------------------------------------------------
-  
-  import { LocationCheck, MerkleWitness, SchnitzelHuntApp, Solution1Tree, Solution2Tree, Solution3Tree } from '../../contracts/build/src/Schnitzel.js';
-  import { deployApp, SchnitzelInterface } from '../../contracts/build/src/Schnitzel.js';
-  
-  const state = {
-    doProof: false,
-    SchnitzelHuntApp: null as null | typeof SchnitzelHuntApp,
-    zkappInterface: null as null | SchnitzelInterface,
-    zkapp: null as null | SchnitzelHuntApp,
-    transaction: null as null | Transaction,
-    verificationKey: null as any,
-    feePayer: null as any | PrivateKey,
-  }
-  
-  // ---------------------------------------------------------------------------------------
-  
-  const functions = {
-    loadSnarkyJS: async (args: {}) => {
-      await isReady;
-    },
-    setActiveInstanceToLocal: async (args: {}) => {
-      let Local = Mina.LocalBlockchain();
-      const feePayer = Local.testAccounts[0].privateKey;
-      Mina.setActiveInstance(Local);
-      state.feePayer = feePayer;
-    },
-    setActiveInstanceToBerkeley: async (args: {}) => {
-      const Berkeley = Mina.BerkeleyQANet(
-        "https://proxy.berkeley.minaexplorer.com/graphql"
-      );
-      Mina.setActiveInstance(Berkeley);
-    },
-    loadContract: async (args: {}) =>  {
-      const { SchnitzelHuntApp } =  await import('../../contracts/build/src/Schnitzel.js'); 
-      state.SchnitzelHuntApp = SchnitzelHuntApp;
+import geohash from 'ngeohash';
+
+type Transaction = Awaited<ReturnType<typeof Mina.transaction>>;
+
+// ---------------------------------------------------------------------------------------
+
+import { SchnitzelHuntApp } from '../../contracts/src/Schnitzel';
+import { LocationCheck, MerkleWitness, Solution1Tree, Solution2Tree, Solution3Tree } from '../../contracts/src/Schnitzel.js';
+
+// let MyMerkleWitness = MerkleWitness(8);
+
+const state = {
+  doProof: false,
+  SchnitzelHuntApp: null as null | typeof SchnitzelHuntApp,
+  zkapp: null as null | SchnitzelHuntApp,
+  transaction: null as null | Transaction,
+  privateKey: null as null | PrivateKey,
+  feePayer: null as null | PrivateKey,
+  verificationKey: null as any,
+  publicKey: null as null | PublicKey,
+}
+
+// ---------------------------------------------------------------------------------------
 
 
-      // setup solution trees
-      let solution1Map = new Map();
-      let solution2Map = new Map();
-      let solution3Map = new Map();
+const functions = {
+  loadSnarkyJS: async (args: {}) => {
+    await isReady;
+    console.log("Snarkjy js is ready!");
+  },
+  setActiveInstanceToLocal: async (args: {}) => {
+    const Local = Mina.LocalBlockchain();
+    Mina.setActiveInstance(Local);
+    state.feePayer = Local.testAccounts[0].privateKey;
+    const zkappAccountKey = PrivateKey.random();
+    const zkAppAccountAddress = zkappAccountKey.toPublicKey();
+    state.privateKey = zkappAccountKey;
+    state.publicKey = zkAppAccountAddress;
+    return zkAppAccountAddress;
+  },
+  loadContract: async (args: {}) => {
+    const { SchnitzelHuntApp } = await import('../../contracts/build/src/Schnitzel.js');
+    state.SchnitzelHuntApp = SchnitzelHuntApp;
+  },
+  compileContract: async (args: {}) => {
+    let  verificationKey: any;
+    ({verificationKey} = await state.SchnitzelHuntApp!.compile());
+    state.verificationKey = verificationKey;
+  },
+  fetchAccount: async (args: { publicKey58: string }) => {
+    const publicKey = PublicKey.fromBase58(args.publicKey58);
+    return await fetchAccount({ publicKey });
+  },
+  createAccount: async (args: {}) => {
+    let ykProofAccountKey = PrivateKey.random();
+    let ykProofAccountAddress = ykProofAccountKey.toPublicKey();
+    state.privateKey = ykProofAccountKey;
+    state.publicKey = ykProofAccountAddress;
 
-      // solution 1 
-      const test_geohash1 = geohash.encode_int(48.2107958217, 16.3736155926);
-      let hash = Poseidon.hash(Field(+test_geohash1).toFields());
-      solution1Map.set(test_geohash1.toString(), 0);
-      Solution1Tree.setLeaf(BigInt(0), hash);
+  },
+  deployApp: async(args: { solution1Root: Field, solution2Root: Field, solution3Root: Field }) =>{
+    // const initialBalance = 100_000_000_000;
 
-      // solution 2 
-      const test_geohash2 = geohash.encode_int(48.2079410492, 16.3716678382);
-      hash = Poseidon.hash(Field(+test_geohash2).toFields());
-      solution2Map.set(test_geohash2.toString(), 0);
-      Solution2Tree.setLeaf(BigInt(0), hash);
+    let zkapp = new state.SchnitzelHuntApp!(state.publicKey!);
+    state.zkapp = zkapp;
 
-      // solution 3 
-      const test_geohash3 = geohash.encode_int(48.2086269882, 16.3725081062);
-      hash = Poseidon.hash(Field(+test_geohash3).toFields());
-      solution3Map.set(test_geohash3.toString(), 0);
-      Solution3Tree.setLeaf(BigInt(0), hash);
-    },
-    compileContract: async (args: {}) => {
-      if (state.doProof) {
-        let verificationKey: any;
-        ({ verificationKey } = await state.SchnitzelHuntApp!.compile());
-        state.verificationKey = verificationKey;
-      }
-    },
-    fetchAccount: async (args: { publicKey58: string }) => {
-      const publicKey = PublicKey.fromBase58(args.publicKey58);
-      return await fetchAccount({ publicKey });
-    },
-    deployContract: async (args: { zkappKey: string, zkappAddress: string }) => {
-
-      console.log('zkappKey ', args.zkappKey);
-      console.log('zkappAddress ', args.zkappAddress);
-
-      let feePayer = state.feePayer;
-      console.log('feePayerAddress ', feePayer.toPublicKey().toBase58());
-      let zkappKey = PrivateKey.fromBase58(args.zkappKey);
-      let zkappAddress = PublicKey.fromBase58(args.zkappAddress);
-
-      let verificationKey = state.verificationKey;
-
-      state.zkapp = new state.SchnitzelHuntApp!(zkappAddress);
-
-      let tx = await Mina.transaction(feePayer, () => {
+    try {
+      let tx = await Mina.transaction(state.feePayer!, () => {
         console.log('Funding account');
-        AccountUpdate.fundNewAccount(feePayer);
-        console.log('done');
+        AccountUpdate.fundNewAccount(state.feePayer!);
         console.log('Deploying smart contract...');
         if (!state.doProof) {
-          state.zkapp!.deploy({ zkappKey: zkappKey });
-          state.zkapp!.setPermissions({
+          zkapp.deploy({ zkappKey: state.privateKey! });
+          zkapp.setPermissions({
             ...Permissions.default(),
             editState: Permissions.proofOrSignature(),
           });
         } else {
-          state.zkapp!.deploy({ verificationKey: verificationKey, zkappKey: zkappKey });
+          zkapp.deploy({ verificationKey: state.verificationKey, zkappKey: state.privateKey! });
         }
-        console.log('done');
       });
-      console.log('prove');
-      if (state.doProof) {
-        await tx.prove().then((tx) => {
-          tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
-        });
-      }
-      console.log('done');
-      console.log('send');
       await tx.send().wait();
-      console.log('done');
-    // state.transaction = tx;
-    },
-    initContract: async (args: { feePayer: string, zkappKey: string, solution1Root: Field, solution2Root: Field, solution3Root: Field }) => {
-      console.log('feePayer ', args.feePayer);
-      console.log('zkappKey ', args.zkappKey);
-
-      const feePayer = PrivateKey.fromBase58(args.feePayer);
-      let zkappKey = PrivateKey.fromBase58(args.zkappKey);
-
-      let tx = await Mina.transaction(feePayer, () => {
+  
+      console.log('Deployment successful!');
+    } catch (error) {
+      console.error('Error deploying app ' + error);
+    }
+  
+    try {
+      let txn = await Mina.transaction(state.feePayer!, () => {
         console.log('Initialising smart contract...');
-        state.zkapp!.init(args.solution1Root, args.solution2Root, args.solution3Root);
-        if (!state.doProof) state.zkapp!.sign(zkappKey);
+        zkapp.init(args.solution1Root, args.solution2Root, args.solution3Root);
+        if (!state.doProof) zkapp.sign(state.privateKey!);
       });
       if (state.doProof) {
-        await tx.prove().then((tx) => {
+        await txn.prove().then((tx) => {
           tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
         });
       }
-      await tx.send().wait();
-    // state.transaction = tx;
-    },
-    initZkappInstance: async (args: { publicKey: string }) => {
-      console.log('initZkappInstance...', args.publicKey);
-      const publicKey = PublicKey.fromBase58(args.publicKey);
-      state.zkapp = new state.SchnitzelHuntApp!(publicKey);
-    },
-    getStep: async (args: {}) => {
-      console.log('getStep...');
-      const currentStep = state.zkapp!.step.get();
-      return JSON.stringify(currentStep.toJSON());
-    },
-    createHuntTransaction: async (args: {locationInstance: LocationCheck, path: MerkleWitness}) => {
-      const tx = await Mina.transaction(() => {
-          state.zkapp!.hunt(args.locationInstance, args.path);
-        }
-      );
-      if (state.doProof) {
-        await tx.prove().then((tx) => {
-          tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
-        });
+      await txn.send().wait();
+  
+      console.log('Contract successfully deployed and initialized!');
+    } catch (error) {
+      console.error('Error initialising app ' + error);
+    }
+  },
+  initZkappInstance: async (args: { publicKey58: string }) => {
+    const publicKey = PublicKey.fromBase58(args.publicKey58);
+    state.zkapp = new state.SchnitzelHuntApp!(publicKey);
+  },
+  initZkapp: async (args: { }) => {
+    state.zkapp = new state.SchnitzelHuntApp!(state.publicKey!);
+  },
+  getStep: async (args: {}) => {
+    const currentStep = await state.zkapp!.step.get();
+    return JSON.stringify(currentStep.toJSON());
+  },
+  getFinished: async (args: {}) => {
+    const finished = await state.zkapp!.finished.get();
+    return JSON.stringify(finished.toJSON());
+  },
+  getRoot1: async (args: {}) => {
+    const root1 = await state.zkapp!.solution1Root.get();
+    return JSON.stringify(root1.toJSON());
+  },
+  createHuntTransaction: async (args: {locationCheckInstance: LocationCheck, path: MerkleWitness}) => {
+
+    let zkapp = new state.SchnitzelHuntApp!(state.publicKey!);
+    state.zkapp = zkapp;
+
+    let sharedLocation: LocationCheck = args.locationCheckInstance;
+    console.log('Hunting the schnitzel for location: ', sharedLocation);
+    const tx = await Mina.transaction(() => {
+        state.zkapp!.hunt(sharedLocation, args.path);
       }
-      await tx.send().wait();
-    },
-    createFinishTransaction: async (args: {}) => {
-      const tx = await Mina.transaction(() => {
-          state.zkapp!.finish();
-        }
-      );
-      if (state.doProof) {
-        await tx.prove().then((tx) => {
-          tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
-        });
+    );
+    if (state.doProof) {
+      await tx.prove().then((tx) => {
+        tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
+      });
+    }
+    await tx.send().wait();
+    console.log('Yess ! Riddle was solved!');
+  },
+  createFinishTransaction: async (args: {}) => {
+    const tx = await Mina.transaction(() => {
+        state.zkapp!.finish();
       }
-      await tx.send().wait();
-    },
-    proveTransaction: async (args: {}) => {
-      await state.transaction!.prove();
-    },
-    getTransactionJSON: async (args: {}) => {
-      return state.transaction!.toJSON();
-    },
-  };
-  
-  // ---------------------------------------------------------------------------------------
-  
-  export type WorkerFunctions = keyof typeof functions;
-  
-  export type ZkappWorkerRequest = {
-    id: number,
-    fn: WorkerFunctions,
-    args: any
+    );
+    if (state.doProof) {
+      await tx.prove().then((tx) => {
+        tx.forEach((p) => console.log(' \n json proof: ' + p?.toJSON().proof));
+      });
+    }
+    await tx.send().wait();
+  },
+  signUpdateTransaction: async (args: {zkappKey: PrivateKey[]}) => {
+    await state.transaction!.sign(args.zkappKey);
+  },
+  proveUpdateTransaction: async (args: {}) => {
+    await state.transaction!.prove();
+  },
+  getTransactionJSON: async (args: {}) => {
+    return state.transaction!.toJSON();
   }
-  
-  export type ZkappWorkerReponse = {
-    id: number,
-    data: any
-  }
-  if (process.browser) {
-    addEventListener('message', async (event: MessageEvent<ZkappWorkerRequest>) => {
-      const returnData = await functions[event.data.fn](event.data.args);
-  
-      const message: ZkappWorkerReponse = {
-        id: event.data.id,
-        data: returnData,
-      }
-      postMessage(message)
-    });
-  }
+};
+
+// ---------------------------------------------------------------------------------------
+
+export type WorkerFunctions = keyof typeof functions;
+
+export type ZkappWorkerRequest = {
+  id: number,
+  fn: WorkerFunctions,
+  args: any
+}
+
+export type ZkappWorkerReponse = {
+  id: number,
+  data: any
+}
+if (process.browser) {
+  addEventListener('message', async (event: MessageEvent<ZkappWorkerRequest>) => {
+    const returnData = await functions[event.data.fn](event.data.args);
+
+    const message: ZkappWorkerReponse = {
+      id: event.data.id,
+      data: returnData,
+    }
+    postMessage(message)
+  });
+}
