@@ -1,6 +1,6 @@
-# Mina zkApp: Test
+# zk schnitzelhunt contracts
 
-This template uses TypeScript.
+During development, I started with an iterative contract which I called `Schnitzel.ts`. Due to the nature of my zkapp, the possibility of using a recursive contract is something I wanted to try and therefore developed a recursive version of the contract.
 
 ## How to build
 
@@ -10,8 +10,16 @@ npm run build
 
 # How to run test script
 
+Run iterative contract
+
 ```sh
 npx tsc && node build/src/run.js
+```
+
+Run recursive contract
+
+```sh
+npx tsc && node build/src/run-recursive.js
 ```
 
 ## How to run tests

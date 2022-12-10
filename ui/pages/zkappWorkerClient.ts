@@ -1,86 +1,81 @@
-import {
-  fetchAccount,
-  PublicKey,
-  PrivateKey,
-  Field,
-  CircuitString,
-} from 'snarkyjs'
-import { LocationCheck, MerkleWitness } from '../../contracts/src/Schnitzel.js';
+import { fetchAccount, PublicKey, Field } from "snarkyjs";
 
-import type { ZkappWorkerRequest, ZkappWorkerReponse, WorkerFunctions } from './zkappWorker.js';
+import type {
+  ZkappWorkerRequest,
+  ZkappWorkerReponse,
+  WorkerFunctions,
+} from "./zkappWorker.js";
 
 export default class ZkappWorkerClient {
-
   // ---------------------------------------------------------------------------------------
 
   loadSnarkyJS() {
-    return this._call('loadSnarkyJS', {});
+    return this._call("loadSnarkyJS", {});
   }
 
-  async setActiveInstanceToLocal(): Promise<PublicKey>{
-    const result = await this._call('setActiveInstanceToLocal', {});
+  async setActiveInstanceToLocal(): Promise<PublicKey> {
+    const result = await this._call("setActiveInstanceToLocal", {});
     return result as PublicKey;
   }
 
-
   loadContract() {
-    return this._call('loadContract', {});
+    return this._call("loadContract", {});
   }
 
   compileContract() {
-    return this._call('compileContract', {});
+    return this._call("compileContract", {});
   }
 
-  fetchAccount({ publicKey }: { publicKey: PublicKey }): ReturnType<typeof fetchAccount> {
-    const result = this._call('fetchAccount', { publicKey58: publicKey.toBase58() });
-    return (result as ReturnType<typeof fetchAccount>);
-  }
-
-  deployApp(solution1Root: Field, solution2Root: Field, solution3Root: Field) {
-    return this._call('deployApp', {solution1Root, solution2Root, solution3Root});
+  deployApp() {
+    return this._call("deployApp", {});
   }
 
   initZkappInstance(publicKey: PublicKey) {
-    return this._call('initZkappInstance', { publicKey58: publicKey.toBase58() });
+    return this._call("initZkappInstance", {
+      publicKey58: publicKey.toBase58(),
+    });
   }
 
   initZkapp() {
-    return this._call('initZkapp', { });
+    return this._call("initZkapp", {});
   }
 
   async getStep(): Promise<Field> {
-    const result = await this._call('getStep', {});
+    const result = await this._call("getStep", {});
     return Field.fromJSON(JSON.parse(result as string))!;
   }
   async getFinished(): Promise<Field> {
-    const result = await this._call('getFinished', {});
+    const result = await this._call("getFinished", {});
     return Field.fromJSON(JSON.parse(result as string))!;
   }
 
   async getRoot1(): Promise<Field> {
-    const result = await this._call('getRoot1', {});
+    const result = await this._call("getRoot1", {});
+    return Field.fromJSON(JSON.parse(result as string))!;
+  }
+  async getRoot2(): Promise<Field> {
+    const result = await this._call("getRoot2", {});
+    return Field.fromJSON(JSON.parse(result as string))!;
+  }
+  async getRoot3(): Promise<Field> {
+    const result = await this._call("getRoot3", {});
     return Field.fromJSON(JSON.parse(result as string))!;
   }
 
-  createHuntTransaction(locationCheckInstance: LocationCheck, path: MerkleWitness) {
-    return this._call('createHuntTransaction', {locationCheckInstance, path});
+  createHuntTransaction(sharedGeoHash: number, currentStep: string) {
+    return this._call("createHuntTransaction", { sharedGeoHash, currentStep });
   }
 
   createFinishTransaction() {
-    return this._call('createFinishTransaction', {});
-  }
-
-
-  signUpdateTransaction(zkappKey: PrivateKey[]) {
-    return this._call('proveUpdateTransaction', {zkappKey});
+    return this._call("createFinishTransaction", {});
   }
 
   proveUpdateTransaction() {
-    return this._call('proveUpdateTransaction', {});
+    return this._call("proveUpdateTransaction", {});
   }
 
   async getTransactionJSON() {
-    const result = await this._call('getTransactionJSON', {});
+    const result = await this._call("getTransactionJSON", {});
     return result;
   }
 
@@ -88,12 +83,14 @@ export default class ZkappWorkerClient {
 
   worker: Worker;
 
-  promises: { [id: number]: { resolve: (res: any) => void, reject: (err: any) => void } };
+  promises: {
+    [id: number]: { resolve: (res: any) => void; reject: (err: any) => void };
+  };
 
   nextId: number;
 
   constructor() {
-    this.worker = new Worker(new URL('./zkappWorker.ts', import.meta.url))
+    this.worker = new Worker(new URL("./zkappWorker.ts", import.meta.url));
     this.promises = {};
     this.nextId = 0;
 
@@ -105,7 +102,7 @@ export default class ZkappWorkerClient {
 
   _call(fn: WorkerFunctions, args: any) {
     return new Promise((resolve, reject) => {
-      this.promises[this.nextId] = { resolve, reject }
+      this.promises[this.nextId] = { resolve, reject };
 
       const message: ZkappWorkerRequest = {
         id: this.nextId,

@@ -125,7 +125,9 @@ console.log(
 // TODO: add error case
 
 tic('prove (riddle 1)');
-let location1 = new LocationCheck(48.2107958217, 16.37361559266);
+let location1 = new LocationCheck(
+  geohash.encode_int(48.2107958217, 16.37361559266)
+);
 let location1Witness = RecSchnitzelHelper.generateMerkleProof(
   location1,
   Solution1Map,
@@ -161,7 +163,9 @@ console.log(
 );
 
 tic('prove (riddle 2)');
-let location2 = new LocationCheck(48.2079410492, 16.3716678382);
+let location2 = new LocationCheck(
+  geohash.encode_int(48.2079410492, 16.3716678382)
+);
 let location2Witness = RecSchnitzelHelper.generateMerkleProof(
   location2,
   Solution1Map,
@@ -196,7 +200,9 @@ console.log(
 );
 
 tic('prove (riddle 3)');
-let location3 = new LocationCheck(48.2086269882, 16.3725081062);
+let location3 = new LocationCheck(
+  geohash.encode_int(48.2086269882, 16.3725081062)
+);
 let location3Witness = RecSchnitzelHelper.generateMerkleProof(
   location3,
   Solution1Map,

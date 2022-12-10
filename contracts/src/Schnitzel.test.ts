@@ -12,6 +12,7 @@ import {
   UInt32,
 } from 'snarkyjs';
 import { MerkleTree } from 'snarkyjs/dist/node/lib/merkle_tree';
+import geohash from 'ngeohash';
 
 /*
  * This file specifies how to test the `Add` example smart contract. It is safe to delete this file and replace
@@ -163,8 +164,7 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 1
       const locationInstanceStep1 = new LocationCheck(
-        48.21073696017265,
-        16.373611986637115
+        geohash.encode_int(48.21073696017265, 16.373611986637115)
       );
       let txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
@@ -184,8 +184,7 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 2
       const locationInstanceStep2 = new LocationCheck(
-        48.20790454745293,
-        16.371637880802155
+        geohash.encode_int(48.20790454745293, 16.371637880802155)
       );
       txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
@@ -205,8 +204,7 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 3
       const locationInstanceStep3 = new LocationCheck(
-        48.2085509598,
-        16.3723942637
+        geohash.encode_int(48.2085509598, 16.3723942637)
       );
       txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
@@ -245,8 +243,7 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 1 with wrong location
       const wronglocationInstanceStep1 = new LocationCheck(
-        48.4107369601,
-        16.4736119866
+        geohash.encode_int(48.4107369601, 16.4736119866)
       );
 
       try {
@@ -276,8 +273,7 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 1 with correct location
       const correctlocationInstanceStep1 = new LocationCheck(
-        48.2108040153,
-        16.3737085461
+        geohash.encode_int(48.2108040153, 16.3737085461)
       );
       let txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
@@ -298,8 +294,7 @@ describe('Schnitzelhunt', () => {
       // solve riddle 2 with wrong location
       try {
         const wronglocationInstanceStep2 = new LocationCheck(
-          48.1079045474,
-          16.5716378808
+          geohash.encode_int(48.1079045474, 16.5716378808)
         );
         txn = await Mina.transaction(deployerAccount, () => {
           let witness = getWitness(
@@ -327,8 +322,7 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 2 with correct location
       const correctLocationInstanceStep2 = new LocationCheck(
-        48.2079447806,
-        16.3716861606
+        geohash.encode_int(48.2079447806, 16.3716861606)
       );
       txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(
@@ -349,8 +343,7 @@ describe('Schnitzelhunt', () => {
       try {
         // solve riddle 3 with incorrect location
         const wrongLocationInstanceStep3 = new LocationCheck(
-          48.5085509598,
-          16.5723942638
+          geohash.encode_int(48.5085509598, 16.5723942638)
         );
         txn = await Mina.transaction(deployerAccount, () => {
           let witness = getWitness(
@@ -392,8 +385,7 @@ describe('Schnitzelhunt', () => {
 
       // solve riddle 3 with correct location
       const locationInstanceStep3 = new LocationCheck(
-        48.208693117,
-        16.3725605607
+        geohash.encode_int(48.208693117, 16.3725605607)
       );
       txn = await Mina.transaction(deployerAccount, () => {
         let witness = getWitness(

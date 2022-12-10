@@ -34,13 +34,12 @@
   font-size: 2rem;
 }
 
-
 .submitButton:hover {
-  background-color: '#ffafbd';
+  background-color: "#ffafbd";
 }
 
 .submissionError {
-  font-size:80px;
+  font-size: 80px;
   color: pink;
   font-weight: 500;
   line-height: 1em;

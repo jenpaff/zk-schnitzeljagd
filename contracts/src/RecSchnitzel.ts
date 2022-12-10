@@ -18,13 +18,17 @@ import {
 import geohash from 'ngeohash';
 import { MerkleTree } from 'snarkyjs/dist/node/lib/merkle_tree.js';
 /**
- * Basic Example
- * See https://docs.minaprotocol.com/zkapps for more info.
+ * Inspired by https://docs.minaprotocol.com/zkapps
  *
- * The Add contract initializes the state variable 'num' to be a Field(1) value by default when deployed.
- * When the 'update' method is called, the Add contract adds Field(2) to its 'num' contract state.
+ * The RecSchnitzel is a recursive version of the Schnitzel contract. The recursive contract
+ * allows us to recursively proof a proof within a proof and then submit the final version on-chain.
+ * On initialization it requires the Merkleroot of the solution trees, one solution tree per riddle presented.
  *
- * This file is safe to delete and replace with your own contract.
+ * When the hunt method is called, the contract will verify whether the passed location is indeed
+ * a valid solution by evaluating the merkle proof and increase the step count by one if successful.
+ *
+ * When the finish method is called, we check whether all steps have been completed
+ * and set finish to true if successful.
  */
 
 await isReady;

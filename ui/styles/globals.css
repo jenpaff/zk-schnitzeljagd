@@ -2,12 +2,12 @@ html,
 body {
   padding: 0;
   margin: 0;
-  font-family: 'Roboto', monospace;
+  font-family: "Roboto", monospace;
   color-scheme: dark;
   font-weight: 500;
-  background: #1D2B64;
-  background: -webkit-linear-gradient(to right, #F8CDDA, #1D2B64);
-  background: linear-gradient(to right, #F8CDDA, #1D2B64);
+  background: #1d2b64;
+  background: -webkit-linear-gradient(to right, #f8cdda, #1d2b64);
+  background: linear-gradient(to right, #f8cdda, #1d2b64);
 }
 
 main {

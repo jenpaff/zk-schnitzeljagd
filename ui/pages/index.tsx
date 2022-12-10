@@ -1,19 +1,18 @@
-import Head from 'next/head'
-import Image from 'next/image'
-import Link from 'next/link'
-import { useEffect } from 'react';
-import { isReady, PublicKey } from 'snarkyjs';
-import styles from '../styles/Home.module.css'
+import Head from "next/head";
+import Image from "next/image";
+import Link from "next/link";
+import { useEffect } from "react";
+import { isReady, PublicKey } from "snarkyjs";
+import styles from "../styles/Home.module.css";
 
 export default function Home() {
-
   useEffect(() => {
     (async () => {
       await isReady;
       // const { Add } = await import('../../contracts/build/src/Schnitzel.js');
 
       // // Update this to use the address (public key) for your zkApp account
-      // // To try it out, you can try this address for an example "Add" smart contract that we've deployed to 
+      // // To try it out, you can try this address for an example "Add" smart contract that we've deployed to
       // // Berkeley Testnet B62qqkb7hD1We6gEfrcqosKt9C398VLp1WXeTo1i9boPoqF7B1LxHg4
       // const zkAppAddress = '';
       // // This should be removed once the zkAppAddress is updated.
@@ -24,10 +23,9 @@ export default function Home() {
       // }
 
       // const zkAppInstance = new Add(PublicKey.fromBase58(zkAppAddress));
-      
     })();
   }, []);
-  
+
   return (
     <div className={styles.container}>
       <Head>
@@ -37,12 +35,12 @@ export default function Home() {
       </Head>
 
       <main className={styles.main}>
-        <h1 className={styles.title}>
-          zk schnitzelhunt 
-        </h1>
+        <h1 className={styles.title}>zk schnitzelhunt</h1>
 
         <p className={styles.description}>
-        <Link href="/game"><button>START NEW GAME</button></Link>
+          <Link href="/game">
+            <button>START NEW GAME</button>
+          </Link>
         </p>
       </main>
 
@@ -52,12 +50,12 @@ export default function Home() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          Powered by{' '}
+          Powered by{" "}
           <span className={styles.logo}>
             <Image src="/vercel.svg" alt="Vercel Logo" width={72} height={16} />
           </span>
         </a>
       </footer>
     </div>
-  )
+  );
 }
