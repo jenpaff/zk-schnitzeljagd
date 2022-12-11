@@ -7,7 +7,7 @@ import {
   generate_solution_tree,
   SchnitzelInterface,
 } from './Schnitzel.js';
-import { Field, Poseidon, shutdown } from 'snarkyjs';
+import { Field, Mina, Poseidon, shutdown } from 'snarkyjs';
 import geohash from 'ngeohash';
 import { tic, toc } from './tictoc.js';
 
@@ -15,12 +15,16 @@ import { tic, toc } from './tictoc.js';
   when turned off it only adds one geohash solution to the solutionTree (used for quick testing/showcasing) 
   rather than loading the whole solution tree to allow for a wider range of allowed locations per solution
 */
-const doQuick = false;
+const doQuick = true;
 /*
    when turned off it will skip generating a proof for correct solutions, 
   may be used for quick testing of the logic
 */
 const doProof = false;
+
+let Local = Mina.LocalBlockchain();
+Mina.setActiveInstance(Local);
+const feePayer = Local.testAccounts[0].privateKey;
 
 let Solution1Map = new Map<string, number>(); // mapping geohash to index
 let Solution2Map = new Map<string, number>(); // mapping geohash to index
@@ -93,15 +97,16 @@ if (doQuick) {
 
 // deploy checkIn zkapp
 let zkapp: SchnitzelInterface = await deployApp(
+  feePayer,
   Solution1Tree.getRoot(),
   Solution2Tree.getRoot(),
   Solution3Tree.getRoot(),
   doProof
 );
 
-console.log('solution1Map size ' + Solution1Map.size);
-console.log('solution2Map size ' + Solution2Map.size);
-console.log('Solution3Map size ' + Solution3Map.size);
+console.log('solution1 root ' + Solution1Tree.getRoot());
+console.log('solution2 root ' + Solution2Tree.getRoot());
+console.log('solution3 root ' + Solution3Tree.getRoot());
 
 let solved = zkapp.getState().solved;
 let step = zkapp.getState().step;
@@ -115,7 +120,8 @@ console.log(
 );
 
 await zkapp.hunt(
-  new LocationCheck(48, 16),
+  feePayer,
+  new LocationCheck(geohash.encode_int(48, 16)),
   Solution1Map,
   Solution2Map,
   Solution3Map,
@@ -149,7 +155,8 @@ console.log(
 );
 
 await zkapp.hunt(
-  new LocationCheck(48.2107958217, 16.3736155926),
+  feePayer,
+  new LocationCheck(geohash.encode_int(48.2107958217, 16.3736155926)),
   Solution1Map,
   Solution2Map,
   Solution3Map,
@@ -178,7 +185,8 @@ console.log(
 );
 
 await zkapp.hunt(
-  new LocationCheck(48.2079410492, 16.3716678382),
+  feePayer,
+  new LocationCheck(geohash.encode_int(48.2079410492, 16.3716678382)),
   Solution1Map,
   Solution2Map,
   Solution3Map,
@@ -207,7 +215,8 @@ console.log(
 );
 
 await zkapp.hunt(
-  new LocationCheck(48.2086269882, 16.3725081062),
+  feePayer,
+  new LocationCheck(geohash.encode_int(48.2086269882, 16.3725081062)),
   Solution1Map,
   Solution2Map,
   Solution3Map,
@@ -227,7 +236,7 @@ if (step != '3') {
   throw Error('Did not increase step after successfully solving 2nd riddle');
 }
 
-await zkapp.finish(doProof);
+await zkapp.finish(feePayer, doProof);
 
 solved = zkapp.getState().solved;
 

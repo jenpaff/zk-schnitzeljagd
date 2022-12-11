@@ -17,16 +17,16 @@ The zk stands for *zero knowledge* and it's what enables you to (cryptographical
 
 ## Repository structure
 
-- The smart contract lives [here](./contracts/src/Schnitzel.ts)
-- The UI lives [here](./ui/pages/)
+- The smart contract + test scripts live [here](./contracts/src/Schnitzel.ts)
+- The UI + E2e tests live [here](./ui/pages/)
 - And further documentation on the technical implementation as well as mockups can be found [here](./docs/)
 
 ## Ideas to extend this project beyond the current scope
 - [x] add e2e test to ensure stability of the UI <> contract
 - [x] configure pipeline on github
 - [x] Build smart contract using recursion API
+- [x] Put snarkyJS functions behind a web worker
 - [ ] Update snarkyJS version
-- [ ] Test selected bounding boxes
 - [ ] User setup/login
 - [ ] Deploy on Berkley
 - [ ] Conduct manual test with deployed app (phone/tablet)

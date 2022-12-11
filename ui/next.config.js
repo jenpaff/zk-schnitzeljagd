@@ -7,15 +7,15 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/(.*)',
+        source: "/(.*)",
         headers: [
           {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin",
           },
           {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
+            key: "Cross-Origin-Embedder-Policy",
+            value: "require-corp",
           },
         ],
       },
@@ -23,13 +23,13 @@ const nextConfig = {
   },
   webpack: (config) => {
     // this will override the experiments
-    config.experiments = { ...config.experiments, ...{ topLevelAwait: true }};
+    config.experiments = { ...config.experiments, ...{ topLevelAwait: true } };
     // this will just update topLevelAwait property of config.experiments
-    // config.experiments.topLevelAwait = true 
+    // config.experiments.topLevelAwait = true
     config.resolve.alias = {
       ...config.resolve.alias,
-      snarkyjs: require('path').resolve('./node_modules/snarkyjs'),
-    }
+      snarkyjs: require("path").resolve("./node_modules/snarkyjs"),
+    };
     config.optimization.minimizer = [];
     return config;
   },

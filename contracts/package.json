@@ -44,7 +44,6 @@
     "lint-staged": "^11.0.1",
     "ngeohash": "^0.6.3",
     "prettier": "^2.3.2",
-    "snarkyjs": "^0.6.0",
     "ts-jest": "^27.0.7",
     "typescript": "^4.7.2"
   },
