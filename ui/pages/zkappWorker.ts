@@ -35,7 +35,7 @@ const state = {
     when turned off it only adds one geohash solution to the solutionTree (used for quick testing/showcasing) 
     rather than loading the whole solution tree to allow for a wider range of allowed locations per solution
   */
-  doQuick: false,
+  doQuick: true,
   SchnitzelHuntApp: null as null | typeof SchnitzelHuntApp,
   LocationCheck: null as null | typeof LocationCheck,
   MerkleWitness: null as null | typeof MerkleWitness,
@@ -307,6 +307,7 @@ if (process.browser) {
 }
 
 async function setup_solution_trees() {
+  tic("build solution merkle trees");
   let { Solution1Tree } = await import(
     "../../contracts/build/src/Schnitzel.js"
   );
@@ -340,7 +341,6 @@ async function setup_solution_trees() {
     solution3Map.set(test_geohash3.toString(), 0);
     Solution3Tree.setLeaf(BigInt(0), hash);
   } else {
-    tic("build solution merkle trees");
     solution1Map = generate_solution_tree(
       48.2107356534,
       16.3736139593,
@@ -362,14 +362,14 @@ async function setup_solution_trees() {
       16.3725546748,
       Solution3Tree
     );
-    state.solution1Map = solution1Map;
-    state.Solution1Tree = Solution1Tree;
-    state.solution2Map = solution2Map;
-    state.Solution2Tree = Solution2Tree;
-    state.solution3Map = solution3Map;
-    state.Solution3Tree = Solution3Tree;
-    toc();
   }
+  state.solution1Map = solution1Map;
+  state.Solution1Tree = Solution1Tree;
+  state.solution2Map = solution2Map;
+  state.Solution2Tree = Solution2Tree;
+  state.solution3Map = solution3Map;
+  state.Solution3Tree = Solution3Tree;
+  toc();
 }
 
 export function generate_solution_tree(
